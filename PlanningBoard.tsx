@@ -178,6 +178,7 @@ const PlanningBoard: React.FC<Props> = ({ planning, projects, characters, active
                   <label className="text-base font-black uppercase text-slate-400 tracking-widest">Compelling Mental Picture</label>
                   <textarea value={planning.logline.mentalPicture} onChange={e => setPlanning({ logline: { ...planning.logline, mentalPicture: e.target.value } })} className="w-full h-48 bg-slate-50 border-none rounded-3xl p-6 text-xl font-medium focus:ring-2 focus:ring-indigo-100 resize-none font-desc italic" />
                 </div>
+                <STCEditorField label="Audience & Cost" value={planning.logline.audienceAndCost} onChange={(v: string) => setPlanning({ logline: { ...planning.logline, audienceAndCost: v } })} placeholder="Target demographic and production scale..." />
                 <STCEditorField label="Killer Title" value={planning.logline.killerTitle} onChange={(v: string) => setPlanning({ logline: { ...planning.logline, killerTitle: v } })} />
               </div>
             )}

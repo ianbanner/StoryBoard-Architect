@@ -49,7 +49,7 @@ const LocationCard = ({ location, onEdit, onDelete }: any) => (
       </div>
     </div>
     <h3 className="text-lg font-bold text-slate-900 mb-1">{location.name}</h3>
-    <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500">World Asset</p>
+    <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500">Asset Registry</p>
     <p className="mt-4 text-xs text-slate-500 font-desc italic leading-relaxed line-clamp-3">{location.description}</p>
     <div className="mt-6 pt-6 border-t border-slate-100">
        <span className="text-[9px] font-black uppercase text-slate-400">Significance</span>
@@ -66,7 +66,7 @@ const LocationEditor = ({ location, onClose, onUpdate }: any) => {
           <button onClick={onClose} className="p-3 hover:bg-slate-200 rounded-full text-slate-500"><ChevronRight size={32} /></button>
           <div>
             <h3 className="text-2xl font-bold text-slate-900">{location.name}</h3>
-            <span className="text-base font-black uppercase text-slate-400 tracking-widest">World Atlas</span>
+            <span className="text-base font-black uppercase text-slate-400 tracking-widest">Location Details</span>
           </div>
         </div>
       </div>
