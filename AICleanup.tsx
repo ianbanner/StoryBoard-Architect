@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { Sparkles, Loader2, CheckCircle2, X, AlertTriangle, ArrowRight, Save, Trash2, Search, Wand2, ShieldCheck, CheckSquare, Square } from 'lucide-react';
 import { GoogleGenAI, Type } from "@google/genai";
-import { StoryboardState, Project, CardType } from './types';
+import { StoryboardState, Project, CardType, Character, Location, StoryCard } from './types';
 
 interface Props {
   state: StoryboardState;
@@ -46,10 +46,11 @@ const AICleanup: React.FC<Props> = ({ state, onUpdateState, onSync }) => {
 
     try {
       // 1. Prepare Data Payload
+      // Fixed: Cast Object.values results to fix property access on unknown types
       const payload: any = {
         projectName: activeProject.name,
         planning: activeProject.planning,
-        characters: Object.values(activeProject.characters || {}).map(c => ({
+        characters: (Object.values(activeProject.characters || {}) as Character[]).map(c => ({
           id: c.id,
           name: c.name,
           oneSentence: c.oneSentence,
@@ -57,13 +58,13 @@ const AICleanup: React.FC<Props> = ({ state, onUpdateState, onSync }) => {
           saveTheCatMoment: c.saveTheCatMoment,
           signaturePhrases: c.signaturePhrases
         })),
-        locations: Object.values(activeProject.locations || {}).map(l => ({
+        locations: (Object.values(activeProject.locations || {}) as Location[]).map(l => ({
           id: l.id,
           name: l.name,
           description: l.description,
           significance: l.significance
         })),
-        cards: Object.values(activeProject.cards || {}).map(c => ({
+        cards: (Object.values(activeProject.cards || {}) as StoryCard[]).map(c => ({
           id: c.id,
           title: c.title,
           description: c.description,

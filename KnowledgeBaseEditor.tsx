@@ -34,7 +34,8 @@ const KnowledgeBaseEditor: React.FC<Props> = ({ knowledgeBase = {}, onUpdateKB }
   const safeKB = knowledgeBase || {};
   
   const sortedArticles = useMemo(() => {
-    const articles = Object.values(safeKB);
+    // Fixed: Cast Object.values to KBArticle[] to fix property access errors on unknown
+    const articles = Object.values(safeKB) as KBArticle[];
     return articles.sort((a, b) => {
       const indexA = STC_BEAT_ORDER.indexOf(a.title);
       const indexB = STC_BEAT_ORDER.indexOf(b.title);
@@ -49,10 +50,12 @@ const KnowledgeBaseEditor: React.FC<Props> = ({ knowledgeBase = {}, onUpdateKB }
   const filtered = sortedArticles.filter(a => a.title.toLowerCase().includes(search.toLowerCase()));
 
   const handleUpdate = (id: string, updates: Partial<KBArticle>) => {
-    const entry = Object.entries(safeKB).find(([_, article]) => article.id === id);
+    // Fixed: Cast Object.entries to correctly access properties of KBArticle values
+    const entry = (Object.entries(safeKB) as [string, KBArticle][]).find(([_, article]) => article.id === id);
     if (!entry) return;
     const [key, article] = entry;
     
+    // Fixed: spread safeKB as Record to satisfy object spread requirements
     onUpdateKB({
       ...safeKB,
       [key]: { ...article, ...updates, lastUpdated: Date.now() }
@@ -112,7 +115,8 @@ const KnowledgeBaseEditor: React.FC<Props> = ({ knowledgeBase = {}, onUpdateKB }
   );
 };
 
-const KBArticleCard = ({ article, onEdit, orderIndex }: { article: KBArticle, onEdit: () => void, orderIndex: number }) => (
+// Fixed: Added key to type definition to satisfy strict TS check during mapping
+const KBArticleCard = ({ article, onEdit, orderIndex }: { article: KBArticle, onEdit: () => void, orderIndex: number; key?: React.Key }) => (
   <div 
     onClick={onEdit}
     className="bg-white border-2 border-slate-100 rounded-[32px] p-8 flex flex-col group transition-all relative hover:shadow-2xl hover:border-indigo-100 cursor-pointer h-[320px]"

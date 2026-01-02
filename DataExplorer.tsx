@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getFirestore, doc, getDoc, initializeFirestore } from 'firebase/firestore';
@@ -314,7 +315,8 @@ const AssetContainer = ({ title, icon, project, filter, loading, isRemote, accen
   );
 };
 
-const RecursiveCardRow = ({ id, cards, depth, index }: { id: string; cards: Record<string, StoryCard>; depth: number; index?: number }) => {
+// Fixed: Added key to type definition to satisfy strict TS check during mapping
+const RecursiveCardRow = ({ id, cards, depth, index }: { id: string; cards: Record<string, StoryCard>; depth: number; index?: number; key?: React.Key }) => {
   const card = cards[id];
   if (!card) return null;
 

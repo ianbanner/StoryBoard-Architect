@@ -138,6 +138,7 @@ const App: React.FC = () => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [activeView, setActiveView] = useState<'STORYBOARD' | 'PEOPLE' | 'LOCATIONS' | 'PLANNING' | 'FIREBASE' | 'ADMIN' | 'DATA_EXPLORER' | 'KB' | 'AI_CLEANUP'>('PLANNING');
   const [searchQuery, setSearchQuery] = useState('');
+  const [sbFontSize, setSbFontSize] = useState(12);
   const [visibilityMode, setVisibilityMode] = useState<'FOCUS' | 'HIDDEN'>('FOCUS');
   const [isSyncing, setIsSyncing] = useState(false);
   const [isAdminExpanded, setIsAdminExpanded] = useState(false);
@@ -240,7 +241,7 @@ const App: React.FC = () => {
 
   const handleLogin = (email: string, pass: string) => {
     setMembershipError(false);
-    const usersList = Object.values(state.users || {});
+    const usersList = Object.values(state.users || {}) as UserProfile[];
     let existingUser = usersList.find(u => u.email.toLowerCase() === email.toLowerCase());
     if (!existingUser && email.toLowerCase() === "dave@bigagility.com") {
       existingUser = SUPERUSER_CONFIG;
@@ -354,7 +355,7 @@ const App: React.FC = () => {
   };
 
   const isCardMatching = (id: string) => {
-    if (!searchQuery) return true; // Fix: Default to true when not searching to keep colors
+    if (!searchQuery) return true;
     const card = activeProject.cards[id];
     const query = searchQuery.toLowerCase();
     return card.title.toLowerCase().includes(query) || card.description.toLowerCase().includes(query);
@@ -369,44 +370,6 @@ const App: React.FC = () => {
       return card.children.some(checkMatch);
     };
     return checkMatch(id);
-  };
-
-  const handleAddUser = (email: string, pass: string) => {
-    const id = generateId();
-    setState(prev => ({
-      ...prev,
-      users: {
-        ...(prev.users || {}),
-        [id]: {
-          id,
-          email,
-          password: pass,
-          isSuperuser: false,
-          permissions: { KB: false, AI_CLEANUP: false, FIREBASE: false, DATA_EXPLORER: false, ADMIN: false }
-        }
-      }
-    }));
-  };
-
-  const toggleUserPermission = (userId: string, permissionKey: string) => {
-    setState(prev => {
-      const users = prev.users || {};
-      const u = users[userId];
-      if (!u) return prev;
-      return {
-        ...prev,
-        users: {
-          ...users,
-          [userId]: {
-            ...u,
-            permissions: {
-              ...(u.permissions || {}),
-              [permissionKey]: !u.permissions?.[permissionKey]
-            }
-          }
-        }
-      };
-    });
   };
 
   if (!user) {
@@ -427,148 +390,157 @@ const App: React.FC = () => {
           {isSyncing ? <Loader2 size={28} className="animate-spin" /> : <Compass size={28} />}
         </button>
         
-        <nav className="flex flex-col gap-2 w-full px-3">
+        <nav className="flex flex-col gap-2 w-full px-3 h-full">
           <SidebarItem icon={<Target size={24} />} label="Planning" active={activeView === 'PLANNING'} onClick={() => setActiveView('PLANNING')} />
           <SidebarItem icon={<LayoutDashboard size={24} />} label="Storyboard" active={activeView === 'STORYBOARD'} onClick={() => setActiveView('STORYBOARD')} />
           <SidebarItem icon={<Users size={24} />} label="Character Bible" active={activeView === 'PEOPLE'} onClick={() => setActiveView('PEOPLE')} />
           <SidebarItem icon={<MapPin size={24} />} label="Locations" active={activeView === 'LOCATIONS'} onClick={() => setActiveView('LOCATIONS')} />
           
-          <div className="flex flex-col gap-1 mt-4">
-            <button 
-              onClick={() => setIsAdminExpanded(!isAdminExpanded)}
-              className={`flex items-center gap-4 p-3.5 rounded-2xl transition-all ${isAdminActive ? 'bg-indigo-50 text-indigo-600' : 'hover:bg-slate-50 text-slate-400'}`}
-            >
-              <div className="shrink-0"><Settings size={24} /></div>
-              <div className="flex-1 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity overflow-hidden whitespace-nowrap">
-                <span className="font-bold text-lg text-slate-700">Admin</span>
-                <ChevronDown size={18} className={`transition-transform duration-300 ${isAdminExpanded ? 'rotate-180' : ''}`} />
-              </div>
-            </button>
-            
-            {isAdminExpanded && (
-              <div className="flex flex-col gap-1 ml-4 overflow-hidden animate-in slide-in-from-top-2 duration-200">
-                {userPerms.KB && <SidebarItem icon={<BookOpen size={20} />} label="Knowledge Base" active={activeView === 'KB'} onClick={() => setActiveView('KB')} isSubmenu />}
-                {userPerms.AI_CLEANUP && <SidebarItem icon={<Sparkles size={20} />} label="AI Cleanup" active={activeView === 'AI_CLEANUP'} onClick={() => setActiveView('AI_CLEANUP')} isSubmenu />}
-                {userPerms.FIREBASE && <SidebarItem icon={<Cloud size={20} />} label="Sync & Backup" active={activeView === 'FIREBASE'} onClick={() => setActiveView('FIREBASE')} isSubmenu />}
-                {userPerms.DATA_EXPLORER && <SidebarItem icon={<Binary size={20} />} label="Data Explorer" active={activeView === 'DATA_EXPLORER'} onClick={() => setActiveView('DATA_EXPLORER')} isSubmenu />}
-                {user.isSuperuser && <SidebarItem icon={<ShieldCheck size={20} />} label="Governance" active={activeView === 'ADMIN'} onClick={() => setActiveView('ADMIN')} isSubmenu />}
+          <div className="mt-auto flex flex-col gap-2 w-full pb-4">
+            {userPerms.ADMIN && (
+              <div className="flex flex-col gap-1">
+                <button 
+                  onClick={() => setIsAdminExpanded(!isAdminExpanded)}
+                  className={`flex items-center gap-4 rounded-2xl p-3.5 transition-all ${isAdminActive ? 'bg-indigo-50 text-indigo-600' : 'hover:bg-slate-100 text-slate-400'}`}
+                >
+                  <ShieldCheck size={24} />
+                  <span className="font-bold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">Admin</span>
+                  <ChevronDown size={14} className={`ml-auto transition-transform ${isAdminExpanded ? 'rotate-180' : ''}`} />
+                </button>
+                {isAdminExpanded && (
+                  <div className="flex flex-col gap-1 pl-2">
+                    {userPerms.KB && <SidebarItem isSubmenu icon={<BookOpen size={18} />} label="KB Editor" active={activeView === 'KB'} onClick={() => setActiveView('KB')} />}
+                    {userPerms.AI_CLEANUP && <SidebarItem isSubmenu icon={<Sparkles size={18} />} label="AI Cleanup" active={activeView === 'AI_CLEANUP'} onClick={() => setActiveView('AI_CLEANUP')} />}
+                    {userPerms.FIREBASE && <SidebarItem isSubmenu icon={<Cloud size={18} />} label="Cloud Vault" active={activeView === 'FIREBASE'} onClick={() => setActiveView('FIREBASE')} />}
+                    {userPerms.DATA_EXPLORER && <SidebarItem isSubmenu icon={<Binary size={18} />} label="Data Mirror" active={activeView === 'DATA_EXPLORER'} onClick={() => setActiveView('DATA_EXPLORER')} />}
+                  </div>
+                )}
               </div>
             )}
+            <SidebarItem icon={<LogOut size={24} />} label="Sign Out" active={false} onClick={() => setUser(null)} />
           </div>
         </nav>
-
-        <div className="mt-auto w-full px-3 flex flex-col gap-2 border-t border-slate-100 pt-8">
-          <SidebarItem icon={<LogOut size={24} />} label="Logoff Session" onClick={() => setUser(null)} />
-        </div>
       </aside>
 
-      <main className="flex-1 flex flex-col overflow-hidden relative">
-        <header className="bg-white border-b border-slate-100 px-12 py-6 flex items-center justify-between shrink-0">
-          <div className="flex flex-col">
-             <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white shadow-sm ${dbStatus === 'ERROR' ? 'bg-rose-500' : 'bg-indigo-600'}`}>
-                  <Zap size={16} fill="currentColor" />
-                </div>
-                <h1 className="text-2xl font-black text-slate-900 tracking-tight">{activeProject?.name || 'Loading Project...'}</h1>
-             </div>
-             <div className="flex items-center gap-4 mt-1">
-               <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
-                 {!isHydrated ? 'Initializing...' : activeView.replace('_', ' ')}
-               </span>
-               <span className="text-[10px] font-bold text-slate-300 italic truncate max-w-[200px]">
-                {user.email}
-               </span>
-             </div>
+      <main className="flex-1 flex flex-col overflow-hidden">
+        <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-10 shrink-0">
+          <div className="flex items-center gap-4">
+             <h1 className="text-xl font-black text-slate-900 tracking-tighter uppercase">{activeView.replace('_', ' ')}</h1>
           </div>
           
-          <div className="flex items-center gap-4">
-            <div className="relative group">
+          <div className="flex items-center gap-6">
+            <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input type="text" placeholder="Search narrative cards..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="bg-slate-50 border-none rounded-2xl pl-12 pr-6 py-3 text-sm font-medium w-80 focus:ring-2 focus:ring-indigo-100 transition-all" />
+              <input 
+                type="text" 
+                placeholder="Search narrative..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="bg-slate-100 border-none rounded-2xl pl-12 pr-6 py-2.5 text-sm font-bold w-64 focus:ring-2 focus:ring-indigo-100 transition-all"
+              />
+            </div>
+            
+            <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl">
+              <button onClick={() => setVisibilityMode('FOCUS')} className={`p-2 rounded-xl transition-all ${visibilityMode === 'FOCUS' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}><CheckSquare size={18} /></button>
+              <button onClick={() => setVisibilityMode('HIDDEN')} className={`p-2 rounded-xl transition-all ${visibilityMode === 'HIDDEN' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}><Square size={18} /></button>
+            </div>
+
+            <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl">
+               <button onClick={() => setSbFontSize(Math.max(8, sbFontSize - 1))} className="p-2 hover:bg-white rounded-xl text-slate-400 transition-all"><Minus size={16}/></button>
+               <span className="text-[10px] font-black text-slate-400 w-6 text-center">{sbFontSize}</span>
+               <button onClick={() => setSbFontSize(Math.min(24, sbFontSize + 1))} className="p-2 hover:bg-white rounded-xl text-slate-400 transition-all"><Plus size={16}/></button>
             </div>
           </div>
         </header>
 
-        <div className="flex-1 overflow-auto p-12 bg-slate-50/50 custom-scrollbar relative">
-          {!isHydrated && (
-            <div className="absolute inset-0 z-[100] bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center">
-              <Loader2 size={48} className="text-indigo-600 animate-spin mb-4" />
-              <p className="font-bold text-slate-600 animate-pulse">Establishing Link to Cloud Vault...</p>
-            </div>
-          )}
-
+        <div className={`flex-1 overflow-auto custom-scrollbar bg-[#f8fafc] ${activeView === 'STORYBOARD' ? 'p-0' : 'p-10'}`}>
           {activeProject && (
             <>
-              {activeView === 'PLANNING' && <PlanningBoard planning={activeProject.planning} projects={state.projectOrder.map(id => ({ id, name: state.projects[id]?.name || id }))} characters={Object.values(activeProject.characters || {})} activeProjectId={state.activeProjectId} onSwitchProject={(id) => setState(prev => ({...prev, activeProjectId: id}))} onCreateProject={() => {}} setPlanning={(updates) => updateActiveProject({ planning: { ...activeProject.planning, ...updates } })} />}
-              {activeView === 'STORYBOARD' && <TheStoryboard cards={activeProject.cards || {}} beatOrder={activeProject.beatOrder || []} characters={Object.values(activeProject.characters || {})} locations={Object.values(activeProject.locations || {})} knowledgeBase={activeProject.knowledgeBase || {}} onUpdateCard={(id, updates) => updateActiveProject({ cards: { ...activeProject.cards, [id]: { ...activeProject.cards[id], ...updates } } })} onDeleteCard={handleDeleteCard} onAddChild={handleAddChild} onAddSibling={handleAddSibling} shouldRenderCard={shouldRenderCard} isCardMatching={isCardMatching} visibilityMode={visibilityMode} cardScale={1.0} />}
-              {activeView === 'PEOPLE' && <CharacterBible characters={activeProject.characters || {}} characterOrder={activeProject.characterOrder || []} onUpdate={(id, updates) => updateActiveProject({ characters: { ...activeProject.characters, [id]: { ...activeProject.characters[id], ...updates } } })} onDelete={() => {}} onAdd={() => {}} />}
-              {activeView === 'LOCATIONS' && <Locations locations={activeProject.locations || {}} locationOrder={activeProject.locationOrder || []} onUpdate={(id, updates) => updateActiveProject({ locations: { ...activeProject.locations, [id]: { ...activeProject.locations[id], ...updates } } })} onDelete={() => {}} onAdd={() => {}} />}
-              {activeView === 'KB' && <KnowledgeBaseEditor knowledgeBase={activeProject.knowledgeBase || {}} onUpdateKB={(updatedKB) => updateActiveProject({ knowledgeBase: updatedKB })} />}
-              {activeView === 'AI_CLEANUP' && <AICleanup state={state} onUpdateState={setState} onSync={syncToCloud} />}
-              {activeView === 'FIREBASE' && <FirebaseSync state={state} onUpdateState={setState} />}
-              {activeView === 'DATA_EXPLORER' && <DataExplorer localState={state} />}
-              {activeView === 'ADMIN' && user.isSuperuser && (
-                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-6xl mx-auto">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h2 className="text-4xl font-black text-slate-900 tracking-tight flex items-center gap-4">
-                        <ShieldCheck className="text-indigo-600" size={40} />
-                        System Governance
-                      </h2>
-                      <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-2 ml-1">Global Permissions & Registry</p>
-                    </div>
-                  </div>
-
-                  <div className="bg-white border-2 border-slate-100 rounded-[40px] p-10 shadow-sm overflow-hidden">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b-2 border-slate-50">
-                          <th className="text-left py-6 px-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">User Identity</th>
-                          <th className="py-6 px-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">KB Access</th>
-                          <th className="py-6 px-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">AI Tools</th>
-                          <th className="py-6 px-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Cloud Sync</th>
-                          <th className="py-6 px-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Audit Logs</th>
-                          <th className="py-6 px-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {Object.values(state.users || {}).map(u => (
-                          <tr key={u.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                            <td className="py-6 px-4">
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
-                                  <Users size={20} />
-                                </div>
-                                <div className="flex flex-col">
-                                  <span className="font-bold text-slate-700">{u.email}</span>
-                                  {u.isSuperuser && <span className="text-[8px] font-black uppercase text-indigo-500 tracking-widest">Superuser</span>}
-                                </div>
-                              </div>
-                            </td>
-                            {['KB', 'AI_CLEANUP', 'FIREBASE', 'DATA_EXPLORER'].map(perm => (
-                              <td key={perm} className="py-6 px-4 text-center">
-                                <button 
-                                  onClick={() => toggleUserPermission(u.id, perm)}
-                                  className={`w-8 h-8 rounded-lg flex items-center justify-center mx-auto transition-all ${u.permissions?.[perm] ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'bg-slate-100 text-slate-300'}`}
-                                >
-                                  {u.permissions?.[perm] ? <CheckCircle2 size={16} /> : <Lock size={16} />}
-                                </button>
-                              </td>
-                            ))}
-                            <td className="py-6 px-4 text-center">
-                               {!u.isSuperuser && (
-                                 <button onClick={() => {}} className="text-slate-300 hover:text-rose-500 transition-colors">
-                                   <Trash2 size={20} />
-                                 </button>
-                               )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+              {activeView === 'PLANNING' && (
+                <div className="max-w-7xl mx-auto">
+                  <PlanningBoard 
+                    planning={activeProject.planning} 
+                    projects={state.projectOrder.map(id => ({ id, name: state.projects[id]?.name || id }))}
+                    characters={Object.values(activeProject.characters)}
+                    activeProjectId={state.activeProjectId}
+                    onSwitchProject={(id) => setState(prev => ({ ...prev, activeProjectId: id }))}
+                    onCreateProject={() => {
+                      const id = generateId();
+                      const p = createEmptyProject(id, "New Story Project");
+                      setState(prev => ({ ...prev, projects: { ...prev.projects, [id]: p }, projectOrder: [...prev.projectOrder, id], activeProjectId: id }));
+                    }}
+                    setPlanning={(updates) => updateActiveProject({ planning: { ...activeProject.planning, ...updates } })}
+                  />
                 </div>
               )}
+              
+              {activeView === 'STORYBOARD' && (
+                <TheStoryboard 
+                  cards={activeProject.cards} 
+                  beatOrder={activeProject.beatOrder}
+                  characters={Object.values(activeProject.characters)}
+                  locations={Object.values(activeProject.locations)}
+                  knowledgeBase={activeProject.knowledgeBase}
+                  onUpdateCard={(id, updates) => updateActiveProject({ cards: { ...activeProject.cards, [id]: { ...activeProject.cards[id], ...updates } } })}
+                  onDeleteCard={handleDeleteCard}
+                  onAddChild={handleAddChild}
+                  onAddSibling={handleAddSibling}
+                  shouldRenderCard={shouldRenderCard}
+                  isCardMatching={isCardMatching}
+                  visibilityMode={visibilityMode}
+                  cardScale={sbFontSize / 12}
+                />
+              )}
+
+              {activeView === 'PEOPLE' && (
+                <div className="max-w-6xl mx-auto">
+                  <CharacterBible 
+                    characters={activeProject.characters}
+                    characterOrder={activeProject.characterOrder}
+                    onUpdate={(id, updates) => updateActiveProject({ characters: { ...activeProject.characters, [id]: { ...activeProject.characters[id], ...updates } } })}
+                    onDelete={(id) => {
+                      if (!confirm("Delete character?")) return;
+                      const newChars = { ...activeProject.characters };
+                      delete newChars[id];
+                      updateActiveProject({ characters: newChars, characterOrder: activeProject.characterOrder.filter(cid => cid !== id) });
+                    }}
+                    onAdd={() => {
+                      const id = generateId();
+                      const newChar: Character = {
+                        id, name: "New Character", oneWord: "Archetype", oneSentence: "A mysterious stranger...",
+                        traits: [], sixThingsToFix: ["", "", "", "", "", ""], primalGoal: "", saveTheCatMoment: ""
+                      };
+                      updateActiveProject({ characters: { ...activeProject.characters, [id]: newChar }, characterOrder: [...activeProject.characterOrder, id] });
+                    }}
+                  />
+                </div>
+              )}
+
+              {activeView === 'LOCATIONS' && (
+                <div className="max-w-6xl mx-auto">
+                  <Locations 
+                    locations={activeProject.locations}
+                    locationOrder={activeProject.locationOrder}
+                    onUpdate={(id, updates) => updateActiveProject({ locations: { ...activeProject.locations, [id]: { ...activeProject.locations[id], ...updates } } })}
+                    onDelete={(id) => {
+                      if (!confirm("Delete location?")) return;
+                      const newLocs = { ...activeProject.locations };
+                      delete newLocs[id];
+                      updateActiveProject({ locations: newLocs, locationOrder: activeProject.locationOrder.filter(lid => lid !== id) });
+                    }}
+                    onAdd={() => {
+                      const id = generateId();
+                      const newLoc: Location = { id, name: "New Location", description: "Describe the setting...", significance: "Why is this place important?", tags: [] };
+                      updateActiveProject({ locations: { ...activeProject.locations, [id]: newLoc }, locationOrder: [...activeProject.locationOrder, id] });
+                    }}
+                  />
+                </div>
+              )}
+
+              {activeView === 'KB' && <div className="max-w-6xl mx-auto"><KnowledgeBaseEditor knowledgeBase={activeProject.knowledgeBase} onUpdateKB={(updatedKB) => updateActiveProject({ knowledgeBase: updatedKB })} /></div>}
+              {activeView === 'FIREBASE' && <div className="max-w-6xl mx-auto"><FirebaseSync state={state} onUpdateState={setState} /></div>}
+              {activeView === 'DATA_EXPLORER' && <div className="max-w-full"><DataExplorer localState={state} /></div>}
+              {activeView === 'AI_CLEANUP' && <div className="max-w-4xl mx-auto"><AICleanup state={state} onUpdateState={setState} onSync={syncToCloud} /></div>}
             </>
           )}
         </div>

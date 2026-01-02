@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Edit3, Trash2, Swords, Plus, ChevronRight, MapPin, User, X, BookOpen, Sparkles, BrainCircuit, Loader2, MessageSquare } from 'lucide-react';
+import { Edit3, Trash2, Swords, Plus, ChevronRight, MapPin, User, X, BookOpen, Sparkles, BrainCircuit, Loader2, MessageSquare, ListTree, ChevronDown, ChevronUp } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { CardType, StoryCard, Character, Location, KBArticle } from './types';
 import { TabButton } from './CommonUI';
@@ -26,20 +26,7 @@ const TheStoryboard: React.FC<Props> = ({
 }) => {
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
   const [kbCardId, setKbCardId] = useState<string | null>(null);
-  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  useEffect(() => {
-    const targetId = editingCardId || kbCardId;
-    if (targetId && cardRefs.current[targetId]) {
-      cardRefs.current[targetId]?.scrollIntoView({
-        behavior: 'smooth',
-        inline: 'start',
-        block: 'nearest'
-      });
-    }
-  }, [editingCardId, kbCardId]);
-
-  const safeKB = knowledgeBase || {};
   const charactersMap = useMemo(() => 
     characters.reduce((acc, char) => ({ ...acc, [char.id]: char }), {} as Record<string, Character>),
     [characters]
@@ -51,29 +38,30 @@ const TheStoryboard: React.FC<Props> = ({
   );
 
   return (
-    <div className="min-w-max pb-40">
-      <div className="flex flex-row items-start gap-16 relative">
-        {beatOrder.filter(id => shouldRenderCard(id)).map(id => (
-          <HierarchyGroup 
-            key={id} 
-            id={id} 
-            cards={cards} 
+    <div className="h-full w-full bg-slate-50 relative overflow-auto custom-scrollbar dot-grid">
+      {/* Main Expansive Layout: Top-level Beats Row */}
+      <div className="flex flex-row gap-24 p-24 min-w-max h-full items-start">
+        {beatOrder.filter(id => shouldRenderCard(id)).map((beatId) => (
+          <StoryboardBranch 
+            key={beatId}
+            beatId={beatId}
+            cards={cards}
             charactersMap={charactersMap}
             locationsMap={locationsMap}
-            onUpdate={onUpdateCard} 
-            onDelete={onDeleteCard} 
-            onAddChild={onAddChild} 
-            onAddSibling={onAddSibling} 
-            onEdit={setEditingCardId} 
+            onUpdate={onUpdateCard}
+            onDelete={onDeleteCard}
+            onAddChild={onAddChild}
+            onAddSibling={onAddSibling}
+            onEdit={setEditingCardId}
             onOpenKB={setKbCardId}
-            isHighlighted={isCardMatching(id)} 
-            visibilityMode={visibilityMode} 
+            isCardMatching={isCardMatching}
             shouldRenderCard={shouldRenderCard}
-            cardScale={cardScale} 
-            cardRefs={cardRefs}
+            cardScale={cardScale}
           />
         ))}
       </div>
+
+      {/* Slide-over Editors */}
       {editingCardId && cards[editingCardId] && (
         <STCCardEditor 
           card={cards[editingCardId]} 
@@ -87,7 +75,7 @@ const TheStoryboard: React.FC<Props> = ({
         <KBViewer 
           card={cards[kbCardId]} 
           cards={cards}
-          knowledgeBase={safeKB}
+          knowledgeBase={knowledgeBase}
           onClose={() => setKbCardId(null)} 
         />
       )}
@@ -95,52 +83,126 @@ const TheStoryboard: React.FC<Props> = ({
   );
 };
 
-const HierarchyGroup = ({ id, cards, charactersMap, locationsMap, onUpdate, onDelete, onAddChild, onAddSibling, onEdit, onOpenKB, isHighlighted, visibilityMode, shouldRenderCard, cardScale, cardRefs }: any) => {
-  const card = cards[id];
-  if (!card) return null;
-  const children = (card.children || []).filter((cid: string) => shouldRenderCard(cid));
+const StoryboardBranch = ({ beatId, cards, charactersMap, locationsMap, onUpdate, onDelete, onAddChild, onAddSibling, onEdit, onOpenKB, isCardMatching, shouldRenderCard, cardScale }: any) => {
+  const beat = cards[beatId];
+  if (!beat) return null;
+
+  const sceneIds = (beat.children || []).filter((id: string) => shouldRenderCard(id));
+  const isHighlighted = isCardMatching(beatId);
+
   return (
-    <div className="flex flex-col items-center">
-      <NarrativeCard 
-        card={card} 
-        charactersMap={charactersMap}
-        locationsMap={locationsMap}
-        onUpdate={onUpdate} 
-        onDelete={onDelete} 
-        onEdit={onEdit} 
-        onOpenKB={onOpenKB}
-        onAddChild={card.type !== CardType.CHAPTER ? () => onAddChild(id) : undefined} 
-        onAddSibling={() => onAddSibling(id)} 
-        isHighlighted={isHighlighted}
-        cardScale={cardScale} 
-        setRef={(el: HTMLDivElement | null) => {
-          if (cardRefs) cardRefs.current[id] = el;
-        }}
-      />
-      {children.length > 0 && (
-        <div className="flex flex-col items-center mt-12 w-full">
-          <div className="w-0.5 h-12 bg-slate-200" />
-          <div className="flex flex-row items-start gap-12 relative">
-            {children.length > 1 && <div className="absolute top-0 h-0.5 bg-slate-200" style={{ left: '170px', right: '170px' }} />}
-            {children.map((cid: string) => (
-              <HierarchyGroup key={cid} id={cid} cards={cards} charactersMap={charactersMap} locationsMap={locationsMap} onUpdate={onUpdate} onDelete={onDelete} onEdit={onEdit} onOpenKB={onOpenKB} onAddChild={onAddChild} onAddSibling={onAddSibling} isHighlighted={isHighlighted} visibilityMode={visibilityMode} shouldRenderCard={shouldRenderCard} cardScale={cardScale} cardRefs={cardRefs} />
-            ))}
+    <div className="flex flex-col items-center shrink-0">
+      {/* Parent: The Beat Card */}
+      <div className="relative mb-20 w-[380px]">
+        <NarrativeCard 
+          card={beat}
+          charactersMap={charactersMap}
+          locationsMap={locationsMap}
+          onUpdate={onUpdate}
+          onDelete={onDelete}
+          onEdit={onEdit}
+          onOpenKB={onOpenKB}
+          onAddChild={() => onAddChild(beatId)}
+          onAddSibling={() => onAddSibling(beatId)}
+          isHighlighted={isHighlighted}
+          cardScale={cardScale}
+          isColumnHeader
+        />
+        {/* Branching Line Down */}
+        {sceneIds.length > 0 && (
+          <div className="absolute top-full left-1/2 -translate-x-1/2 w-0.5 h-10 bg-slate-200" />
+        )}
+      </div>
+
+      {/* Horizontal Children: Scenes */}
+      <div className="flex flex-row gap-12 items-start relative pt-10">
+        {/* Cross-beam connector for scenes */}
+        {sceneIds.length > 1 && (
+          <div className="absolute top-0 h-0.5 bg-slate-200" style={{
+            left: `${100 / (sceneIds.length * 2)}%`,
+            right: `${100 / (sceneIds.length * 2)}%`
+          }} />
+        )}
+        
+        {sceneIds.map((sceneId: string) => (
+          <div key={sceneId} className="flex flex-col items-center">
+            {/* Short vertical line up to cross-beam */}
+            <div className="w-0.5 h-10 bg-slate-200 -mt-10 mb-0" />
+            
+            <div className="w-[360px] relative">
+              <NarrativeCard 
+                card={cards[sceneId]}
+                charactersMap={charactersMap}
+                locationsMap={locationsMap}
+                onUpdate={onUpdate}
+                onDelete={onDelete}
+                onEdit={onEdit}
+                onOpenKB={onOpenKB}
+                onAddChild={() => onAddChild(sceneId)}
+                onAddSibling={() => onAddSibling(sceneId)}
+                isHighlighted={isCardMatching(sceneId)}
+                cardScale={cardScale}
+              />
+              
+              {/* Branching Line Down to Chapters */}
+              {((cards[sceneId].children || []).filter((id: string) => shouldRenderCard(id))).length > 0 && (
+                <div className="absolute top-full left-1/2 -translate-x-1/2 w-0.5 h-10 bg-slate-200" />
+              )}
+            </div>
+
+            {/* Sub-Children Row: Chapters */}
+            <div className="mt-20 flex flex-row gap-6 items-start relative">
+              {/* Chapters cross-beam */}
+              {(cards[sceneId].children || []).filter((id: string) => shouldRenderCard(id)).length > 1 && (
+                 <div className="absolute top-[-10px] h-0.5 bg-slate-200" style={{
+                   left: `${100 / (((cards[sceneId].children || []).filter((id: string) => shouldRenderCard(id))).length * 2)}%`,
+                   right: `${100 / (((cards[sceneId].children || []).filter((id: string) => shouldRenderCard(id))).length * 2)}%`
+                 }} />
+              )}
+
+              {(cards[sceneId].children || []).filter((id: string) => shouldRenderCard(id)).map((chapterId: string) => (
+                <div key={chapterId} className="flex flex-col items-center">
+                  <div className="w-0.5 h-10 bg-slate-200 -mt-10 mb-0" />
+                  <div className="w-[320px]">
+                    <NarrativeCard 
+                      card={cards[chapterId]}
+                      charactersMap={charactersMap}
+                      locationsMap={locationsMap}
+                      onUpdate={onUpdate}
+                      onDelete={onDelete}
+                      onEdit={onEdit}
+                      onOpenKB={onOpenKB}
+                      onAddSibling={() => onAddSibling(chapterId)}
+                      isHighlighted={isCardMatching(chapterId)}
+                      cardScale={cardScale}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        ))}
+        {sceneIds.length === 0 && (
+          <div className="w-[360px] h-40 border-2 border-dashed border-slate-200 rounded-[32px] flex flex-col items-center justify-center text-slate-400 opacity-40">
+            <Plus size={24} className="mb-2" />
+            <span className="text-[10px] font-black uppercase tracking-widest">No Scenes Yet</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
 
-const NarrativeCard = ({ card, charactersMap, locationsMap, onEdit, onDelete, onOpenKB, onAddChild, onAddSibling, isHighlighted, cardScale, setRef }: any) => {
+const NarrativeCard = ({ card, charactersMap, locationsMap, onEdit, onDelete, onOpenKB, onAddChild, onAddSibling, isHighlighted, cardScale, isColumnHeader }: any) => {
   const colors = { 
-    [CardType.BEAT]: 'border-amber-400 bg-amber-50 text-amber-900 shadow-beat', 
-    [CardType.SCENE]: 'border-blue-400 bg-blue-50 text-blue-900 shadow-scene',
-    [CardType.CHAPTER]: 'border-teal-400 bg-teal-50 text-teal-900 shadow-chapter'
+    [CardType.BEAT]: 'border-amber-400 bg-white text-amber-900 shadow-beat', 
+    [CardType.SCENE]: 'border-blue-400 bg-white text-blue-900 shadow-scene',
+    [CardType.CHAPTER]: 'border-teal-400 bg-white text-teal-900 shadow-chapter'
   };
   
-  // Restoration fix: visualClasses should always be saturated unless specifically being filtered out
-  const visualClasses = isHighlighted ? "opacity-100 saturate-100 scale-100 shadow-lg" : "opacity-30 grayscale scale-95 pointer-events-none";
+  const visualClasses = isHighlighted 
+    ? "opacity-100 saturate-100 scale-100 shadow-xl border-indigo-500 ring-2 ring-indigo-100" 
+    : "opacity-80 grayscale-[0.1] scale-100 hover:opacity-100 hover:grayscale-0 hover:scale-[1.02] hover:shadow-2xl hover:border-indigo-400";
   
   const charA = card.conflictSubjectAId ? charactersMap[card.conflictSubjectAId] : null;
   const charB = card.conflictSubjectBId ? charactersMap[card.conflictSubjectBId] : null;
@@ -164,58 +226,95 @@ const NarrativeCard = ({ card, charactersMap, locationsMap, onEdit, onDelete, on
 
   return (
     <div 
-      ref={setRef}
-      className={`w-[340px] h-[240px] border-2 rounded-3xl p-6 flex flex-col group transition-all relative ${colors[card.type]} ${visualClasses} hover:z-10 cursor-pointer`}
+      className={`w-full ${isColumnHeader ? 'h-[250px]' : 'h-[230px]'} border-2 rounded-[32px] p-6 flex flex-col group transition-all relative z-10 overflow-hidden ${colors[card.type]} ${visualClasses} cursor-pointer`}
       onClick={() => onEdit(card.id)}
     >
-      <div className="flex items-start justify-between mb-2">
-        <h3 className="font-black uppercase tracking-widest truncate max-w-[70%]" style={{ fontSize: `${12 * cardScale}px` }}>
+      {/* Type Label (Absolute Corner) */}
+      <div className="absolute top-4 right-6 text-[8px] font-black opacity-20 tracking-[0.2em] uppercase">
+        {card.type}
+      </div>
+
+      <div className="flex flex-col gap-1 mb-2">
+        <h3 className="font-black uppercase tracking-widest truncate leading-tight" style={{ fontSize: `${12 * cardScale}px` }}>
           {card.title}
         </h3>
-        <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button onClick={stopPropagation(() => onOpenKB(card.id))} className="p-1.5 bg-indigo-500 text-white rounded-lg shadow-sm hover:scale-110 transition-transform">
-            <BookOpen size={14} />
-          </button>
-          <button onClick={stopPropagation(() => onEdit(card.id))} className="p-1.5 bg-white border border-slate-100 text-slate-400 rounded-lg hover:text-indigo-600 transition-colors"><Edit3 size={14} /></button>
-          <button onClick={stopPropagation(() => onDelete(card.id))} className="p-1.5 bg-white border border-slate-100 text-slate-400 rounded-lg hover:text-rose-600 transition-colors"><Trash2 size={14} /></button>
+        <div className="flex items-center gap-1 opacity-40">
+           <div className={`w-2 h-2 rounded-full ${card.type === CardType.BEAT ? 'bg-amber-400' : card.type === CardType.SCENE ? 'bg-blue-400' : 'bg-teal-400'}`} />
+           <span className="text-[7px] font-black uppercase tracking-widest">Architectural Unit</span>
         </div>
       </div>
       
-      <p className="flex-1 font-desc line-clamp-2 leading-relaxed italic opacity-80 mb-2" style={{ fontSize: `${11 * cardScale}px` }}>
+      {/* Description with fixed line count to prevent pushing footer */}
+      <p className="font-desc leading-relaxed italic opacity-70 mb-3 overflow-hidden flex-shrink-0" style={{ fontSize: `${11 * cardScale}px`, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
         {card.description}
       </p>
       
-      <div className="flex flex-wrap gap-1.5 mb-3 overflow-hidden">
-        {ribbonTags.map((tag: any) => (
-          <div key={tag.id} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[8px] font-black uppercase transition-all shadow-sm ${tag.category === 'character' ? (charactersMap[tag.id]?.isVillain ? 'bg-red-500 border-red-600 text-white' : 'bg-emerald-500 border-emerald-600 text-white') : 'bg-indigo-600 border-indigo-700 text-white'}`}>
-            {tag.category === 'character' ? <User size={8} /> : <MapPin size={8} />}
+      {/* Tags section - flexible but contained */}
+      <div className="flex flex-wrap gap-1 mb-4 h-10 overflow-hidden shrink-0">
+        {ribbonTags.slice(0, 3).map((tag: any) => (
+          <div key={tag.id} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[7px] font-black uppercase transition-all shadow-sm ${tag.category === 'character' ? (charactersMap[tag.id]?.isVillain ? 'bg-rose-500 border-rose-600 text-white' : 'bg-emerald-500 border-emerald-600 text-white') : 'bg-indigo-600 border-indigo-700 text-white'}`}>
+            {tag.category === 'character' ? <User size={7} /> : <MapPin size={7} />}
             {tag.label}
           </div>
         ))}
+        {ribbonTags.length > 3 && <span className="text-[7px] font-black text-slate-400 py-1">+{ribbonTags.length - 3}</span>}
       </div>
 
-      <div className="flex items-center gap-4 mt-auto pt-3 border-t border-black/5">
+      {/* FOOTER SECTION: Always grounded with flex-grow and mt-auto */}
+      <div className="mt-auto pt-3 border-t border-black/[0.04] flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2 flex-1 truncate text-slate-500">
-          <Swords size={12} className="shrink-0" />
-          <span className="text-[10px] font-bold truncate">
+          <Swords size={12 * cardScale} className="shrink-0 opacity-40" />
+          <span className="font-bold truncate opacity-80" style={{ fontSize: `${9 * cardScale}px` }}>
             {charA && charB ? (
-              <span className="flex items-center gap-1">
-                <span className={charA.isVillain ? 'text-red-600' : 'text-emerald-600'}>{charA.name}</span>
-                <span className="text-slate-300">vs</span>
-                <span className={charB.isVillain ? 'text-red-600' : 'text-emerald-600'}>{charB.name}</span>
+              <span className="flex items-center gap-1.5">
+                <span className={charA.isVillain ? 'text-rose-600' : 'text-emerald-600'}>{charA.name}</span>
+                <span className="opacity-30">vs</span>
+                <span className={charB.isVillain ? 'text-rose-600' : 'text-emerald-600'}>{charB.name}</span>
               </span>
-            ) : card.conflict || "No conflict"}
+            ) : card.conflict || "Neutral Drama"}
           </span>
         </div>
+
+        {/* EMOTIONAL SIGN FLIP BADGE - Explicit Visibility */}
         {card.emotionalValue && (
-          <div className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase shrink-0 shadow-sm ${card.emotionalValue === 'POSITIVE' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-rose-100 text-rose-700 border-rose-200'}`}>
-            {card.emotionalValue === 'POSITIVE' ? '+ Transition' : '- Transition'}
+          <div 
+            className={`px-3 py-1 rounded-full font-black uppercase shrink-0 shadow-lg border-2 z-20 ${card.emotionalValue === 'POSITIVE' ? 'bg-emerald-50 text-emerald-600 border-emerald-100 shadow-emerald-50' : 'bg-rose-50 text-rose-600 border-rose-100 shadow-rose-50'}`}
+            style={{ fontSize: `${11 * cardScale}px` }}
+          >
+            {card.emotionalValue === 'POSITIVE' ? '+' : '-'}
           </div>
         )}
       </div>
 
-      <button onClick={stopPropagation(onAddSibling)} className="absolute top-1/2 -right-4 -translate-y-1/2 opacity-0 group-hover:opacity-100 bg-white border border-slate-200 p-1.5 rounded-full shadow-lg hover:scale-110 transition-all z-20"><Plus size={12} className="text-slate-400" /></button>
-      {onAddChild && <button onClick={stopPropagation(onAddChild)} className="absolute -bottom-4 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-white border border-slate-200 p-1.5 rounded-full shadow-lg hover:scale-110 transition-all z-20"><Plus size={12} className="text-slate-400" /></button>}
+      {/* Overlays and Floating Buttons */}
+      <div className="absolute inset-0 bg-indigo-600/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+      
+      <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0 z-30">
+          <button onClick={stopPropagation(() => onOpenKB(card.id))} className="p-2 bg-amber-500 text-white rounded-xl shadow-xl shadow-amber-200/50 hover:scale-110 transition-transform">
+            <BookOpen size={14} />
+          </button>
+          <button onClick={stopPropagation(() => onEdit(card.id))} className="p-2 bg-white border border-slate-100 text-slate-400 rounded-xl hover:text-indigo-600 shadow-xl shadow-indigo-100/10 transition-colors"><Edit3 size={14} /></button>
+          {card.type !== CardType.BEAT && (
+            <button onClick={stopPropagation(() => onDelete(card.id))} className="p-2 bg-white border border-slate-100 text-slate-400 rounded-xl hover:text-rose-600 shadow-xl shadow-rose-100/10 transition-colors"><Trash2 size={14} /></button>
+          )}
+      </div>
+
+      <button 
+        onClick={stopPropagation(onAddSibling)} 
+        className="absolute top-1/2 -right-4 -translate-y-1/2 opacity-0 group-hover:opacity-100 bg-white border border-slate-200 p-2 rounded-full shadow-2xl hover:scale-110 transition-all z-40 text-slate-400 hover:text-indigo-600 active:scale-90"
+        title="Add Sibling"
+      >
+        <Plus size={14} />
+      </button>
+      {onAddChild && (
+        <button 
+          onClick={stopPropagation(onAddChild)} 
+          className="absolute -bottom-4 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-white border border-slate-200 p-2 rounded-full shadow-2xl hover:scale-110 transition-all z-40 text-slate-400 hover:text-indigo-600 active:scale-90"
+          title={`Add ${card.type === CardType.BEAT ? 'Scene' : 'Chapter'}`}
+        >
+          <Plus size={14} />
+        </button>
+      )}
     </div>
   );
 };
@@ -235,8 +334,7 @@ const KBViewer = ({ card, cards, knowledgeBase = {}, onClose }: { card: StoryCar
 
   const beat = findAncestorBeat(card);
   const baseTitle = beat ? beat.title : "Unknown Beat";
-  const safeKB = knowledgeBase || {};
-  const article = safeKB[baseTitle];
+  const article = knowledgeBase[baseTitle];
 
   const handleCallCoach = async () => {
     if (!article?.aiScript) {
@@ -284,7 +382,7 @@ const KBViewer = ({ card, cards, knowledgeBase = {}, onClose }: { card: StoryCar
             <h4 className="text-sm font-black uppercase tracking-[0.2em]">Methodology Insight</h4>
           </div>
           <p className="text-xl font-desc italic leading-relaxed text-slate-700">
-            {article?.content || "No advice found."}
+            {article?.content || "No advice found for this beat."}
           </p>
         </div>
 
@@ -303,6 +401,7 @@ const KBViewer = ({ card, cards, knowledgeBase = {}, onClose }: { card: StoryCar
               Call Coach
             </button>
           </div>
+          {error && <p className="text-xs text-rose-500 font-bold">{error}</p>}
           {coachingAdvice && (
             <div className="p-8 bg-indigo-50 border-2 border-indigo-100 rounded-[32px] relative animate-in fade-in zoom-in-95 duration-500">
               <p className="text-lg font-desc italic leading-relaxed text-slate-800">{coachingAdvice}</p>
@@ -391,6 +490,13 @@ const STCCardEditor = ({ card, onClose, onUpdate, characters, locations }: any) 
                   );
                 })}
               </div>
+            </div>
+            <div className="space-y-6">
+              <label className="text-base font-black uppercase text-slate-400 tracking-widest">Primary Location</label>
+              <select value={card.primaryLocationId || ''} onChange={e => onUpdate({ primaryLocationId: e.target.value })} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 text-lg font-bold text-slate-600">
+                <option value="">Select Location...</option>
+                {locations.map((loc: any) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
+              </select>
             </div>
           </div>
         )}
