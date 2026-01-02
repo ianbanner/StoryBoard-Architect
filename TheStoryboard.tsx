@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Edit3, Trash2, Swords, Plus, ChevronRight, MapPin, User, X, BookOpen, Sparkles, BrainCircuit, Loader2, MessageSquare, ListTree, ChevronDown, ChevronUp } from 'lucide-react';
+import { Edit3, Trash2, Swords, Plus, ChevronRight, MapPin, User, X, BookOpen, Sparkles, BrainCircuit, Loader2, MessageSquare, ListTree, ChevronDown, ChevronUp, FileText, Type, CheckCircle2, Users, Layout, Activity, ArrowUpRight, TrendingUp, TrendingDown, Book } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { CardType, StoryCard, Character, Location, KBArticle } from './types';
 import { TabButton } from './CommonUI';
@@ -22,10 +22,11 @@ interface Props {
 }
 
 const TheStoryboard: React.FC<Props> = ({ 
-  cards, beatOrder, characters, locations, knowledgeBase = {}, onUpdateCard, onDeleteCard, onAddChild, onAddSibling, shouldRenderCard, isCardMatching, visibilityMode, cardScale 
+  cards, beatOrder, characters = [], locations = [], knowledgeBase = {}, onUpdateCard, onDeleteCard, onAddChild, onAddSibling, shouldRenderCard, isCardMatching, visibilityMode, cardScale 
 }) => {
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
   const [kbCardId, setKbCardId] = useState<string | null>(null);
+  const [writingCardId, setWritingCardId] = useState<string | null>(null);
 
   const charactersMap = useMemo(() => 
     characters.reduce((acc, char) => ({ ...acc, [char.id]: char }), {} as Record<string, Character>),
@@ -38,8 +39,7 @@ const TheStoryboard: React.FC<Props> = ({
   );
 
   return (
-    <div className="h-full w-full bg-slate-50 relative overflow-auto custom-scrollbar dot-grid">
-      {/* Main Expansive Layout: Top-level Beats Row */}
+    <div className="h-full w-full bg-[#f8fafc] relative overflow-auto custom-scrollbar dot-grid">
       <div className="flex flex-row gap-24 p-24 min-w-max h-full items-start">
         {beatOrder.filter(id => shouldRenderCard(id)).map((beatId) => (
           <StoryboardBranch 
@@ -54,6 +54,7 @@ const TheStoryboard: React.FC<Props> = ({
             onAddSibling={onAddSibling}
             onEdit={setEditingCardId}
             onOpenKB={setKbCardId}
+            onOpenWriter={setWritingCardId}
             isCardMatching={isCardMatching}
             shouldRenderCard={shouldRenderCard}
             cardScale={cardScale}
@@ -61,7 +62,6 @@ const TheStoryboard: React.FC<Props> = ({
         ))}
       </div>
 
-      {/* Slide-over Editors */}
       {editingCardId && cards[editingCardId] && (
         <STCCardEditor 
           card={cards[editingCardId]} 
@@ -79,11 +79,22 @@ const TheStoryboard: React.FC<Props> = ({
           onClose={() => setKbCardId(null)} 
         />
       )}
+
+      {writingCardId && cards[writingCardId] && (
+        <DraftingRoom 
+          card={cards[writingCardId]}
+          cards={cards}
+          onClose={() => setWritingCardId(null)}
+          onUpdate={(updates: any) => onUpdateCard(writingCardId, updates)}
+          charactersMap={charactersMap}
+          locationsMap={locationsMap}
+        />
+      )}
     </div>
   );
 };
 
-const StoryboardBranch = ({ beatId, cards, charactersMap, locationsMap, onUpdate, onDelete, onAddChild, onAddSibling, onEdit, onOpenKB, isCardMatching, shouldRenderCard, cardScale }: any) => {
+const StoryboardBranch = ({ beatId, cards, charactersMap, locationsMap, onUpdate, onDelete, onAddChild, onAddSibling, onEdit, onOpenKB, onOpenWriter, isCardMatching, shouldRenderCard, cardScale }: any) => {
   const beat = cards[beatId];
   if (!beat) return null;
 
@@ -92,31 +103,29 @@ const StoryboardBranch = ({ beatId, cards, charactersMap, locationsMap, onUpdate
 
   return (
     <div className="flex flex-col items-center shrink-0">
-      {/* Parent: The Beat Card */}
       <div className="relative mb-20 w-[380px]">
         <NarrativeCard 
           card={beat}
+          cards={cards}
           charactersMap={charactersMap}
           locationsMap={locationsMap}
           onUpdate={onUpdate}
           onDelete={onDelete}
           onEdit={onEdit}
           onOpenKB={onOpenKB}
+          onOpenWriter={onOpenWriter}
           onAddChild={() => onAddChild(beatId)}
           onAddSibling={() => onAddSibling(beatId)}
           isHighlighted={isHighlighted}
           cardScale={cardScale}
           isColumnHeader
         />
-        {/* Branching Line Down */}
         {sceneIds.length > 0 && (
           <div className="absolute top-full left-1/2 -translate-x-1/2 w-0.5 h-10 bg-slate-200" />
         )}
       </div>
 
-      {/* Horizontal Children: Scenes */}
       <div className="flex flex-row gap-12 items-start relative pt-10">
-        {/* Cross-beam connector for scenes */}
         {sceneIds.length > 1 && (
           <div className="absolute top-0 h-0.5 bg-slate-200" style={{
             left: `${100 / (sceneIds.length * 2)}%`,
@@ -124,64 +133,68 @@ const StoryboardBranch = ({ beatId, cards, charactersMap, locationsMap, onUpdate
           }} />
         )}
         
-        {sceneIds.map((sceneId: string) => (
-          <div key={sceneId} className="flex flex-col items-center">
-            {/* Short vertical line up to cross-beam */}
-            <div className="w-0.5 h-10 bg-slate-200 -mt-10 mb-0" />
-            
-            <div className="w-[360px] relative">
-              <NarrativeCard 
-                card={cards[sceneId]}
-                charactersMap={charactersMap}
-                locationsMap={locationsMap}
-                onUpdate={onUpdate}
-                onDelete={onDelete}
-                onEdit={onEdit}
-                onOpenKB={onOpenKB}
-                onAddChild={() => onAddChild(sceneId)}
-                onAddSibling={() => onAddSibling(sceneId)}
-                isHighlighted={isCardMatching(sceneId)}
-                cardScale={cardScale}
-              />
-              
-              {/* Branching Line Down to Chapters */}
-              {((cards[sceneId].children || []).filter((id: string) => shouldRenderCard(id))).length > 0 && (
-                <div className="absolute top-full left-1/2 -translate-x-1/2 w-0.5 h-10 bg-slate-200" />
-              )}
-            </div>
+        {sceneIds.map((sceneId: string) => {
+          const scene = cards[sceneId];
+          if (!scene) return null;
+          const childChapters = (scene.children || []).filter((id: string) => shouldRenderCard(id));
+          
+          return (
+            <div key={sceneId} className="flex flex-col items-center">
+              <div className="w-0.5 h-10 bg-slate-200 -mt-10 mb-0" />
+              <div className="w-[360px] relative">
+                <NarrativeCard 
+                  card={scene}
+                  cards={cards}
+                  charactersMap={charactersMap}
+                  locationsMap={locationsMap}
+                  onUpdate={onUpdate}
+                  onDelete={onDelete}
+                  onEdit={onEdit}
+                  onOpenKB={onOpenKB}
+                  onOpenWriter={onOpenWriter}
+                  onAddChild={() => onAddChild(sceneId)}
+                  onAddSibling={() => onAddSibling(sceneId)}
+                  isHighlighted={isCardMatching(sceneId)}
+                  cardScale={cardScale}
+                />
+                {childChapters.length > 0 && (
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 w-0.5 h-10 bg-slate-200" />
+                )}
+              </div>
 
-            {/* Sub-Children Row: Chapters */}
-            <div className="mt-20 flex flex-row gap-6 items-start relative">
-              {/* Chapters cross-beam */}
-              {(cards[sceneId].children || []).filter((id: string) => shouldRenderCard(id)).length > 1 && (
-                 <div className="absolute top-[-10px] h-0.5 bg-slate-200" style={{
-                   left: `${100 / (((cards[sceneId].children || []).filter((id: string) => shouldRenderCard(id))).length * 2)}%`,
-                   right: `${100 / (((cards[sceneId].children || []).filter((id: string) => shouldRenderCard(id))).length * 2)}%`
-                 }} />
-              )}
+              <div className="mt-20 flex flex-row gap-6 items-start relative">
+                {childChapters.length > 1 && (
+                   <div className="absolute top-[-10px] h-0.5 bg-slate-200" style={{
+                     left: `${100 / (childChapters.length * 2)}%`,
+                     right: `${100 / (childChapters.length * 2)}%`
+                   }} />
+                )}
 
-              {(cards[sceneId].children || []).filter((id: string) => shouldRenderCard(id)).map((chapterId: string) => (
-                <div key={chapterId} className="flex flex-col items-center">
-                  <div className="w-0.5 h-10 bg-slate-200 -mt-10 mb-0" />
-                  <div className="w-[320px]">
-                    <NarrativeCard 
-                      card={cards[chapterId]}
-                      charactersMap={charactersMap}
-                      locationsMap={locationsMap}
-                      onUpdate={onUpdate}
-                      onDelete={onDelete}
-                      onEdit={onEdit}
-                      onOpenKB={onOpenKB}
-                      onAddSibling={() => onAddSibling(chapterId)}
-                      isHighlighted={isCardMatching(chapterId)}
-                      cardScale={cardScale}
-                    />
+                {childChapters.map((chapterId: string) => (
+                  <div key={chapterId} className="flex flex-col items-center">
+                    <div className="w-0.5 h-10 bg-slate-200 -mt-10 mb-0" />
+                    <div className="w-[320px]">
+                      <NarrativeCard 
+                        card={cards[chapterId]}
+                        cards={cards}
+                        charactersMap={charactersMap}
+                        locationsMap={locationsMap}
+                        onUpdate={onUpdate}
+                        onDelete={onDelete}
+                        onEdit={onEdit}
+                        onOpenKB={onOpenKB}
+                        onOpenWriter={onOpenWriter}
+                        onAddSibling={() => onAddSibling(chapterId)}
+                        isHighlighted={isCardMatching(chapterId)}
+                        cardScale={cardScale}
+                      />
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         {sceneIds.length === 0 && (
           <div className="w-[360px] h-40 border-2 border-dashed border-slate-200 rounded-[32px] flex flex-col items-center justify-center text-slate-400 opacity-40">
             <Plus size={24} className="mb-2" />
@@ -193,116 +206,118 @@ const StoryboardBranch = ({ beatId, cards, charactersMap, locationsMap, onUpdate
   );
 };
 
-const NarrativeCard = ({ card, charactersMap, locationsMap, onEdit, onDelete, onOpenKB, onAddChild, onAddSibling, isHighlighted, cardScale, isColumnHeader }: any) => {
-  const colors = { 
-    [CardType.BEAT]: 'border-amber-400 bg-white text-amber-900 shadow-beat', 
-    [CardType.SCENE]: 'border-blue-400 bg-white text-blue-900 shadow-scene',
-    [CardType.CHAPTER]: 'border-teal-400 bg-white text-teal-900 shadow-chapter'
+const NarrativeCard = ({ card, cards, charactersMap, locationsMap, onEdit, onDelete, onOpenKB, onOpenWriter, onAddChild, onAddSibling, isHighlighted, cardScale, isColumnHeader }: any) => {
+  if (!card) return null;
+  const typeLabels = { 
+    [CardType.BEAT]: 'STRUCTURE / ARCHITECT', 
+    [CardType.SCENE]: 'NARRATIVE / SCENE',
+    [CardType.CHAPTER]: 'LITERARY / CHAPTER'
+  };
+
+  const borderColors = {
+    [CardType.BEAT]: 'border-l-amber-500',
+    [CardType.SCENE]: 'border-l-blue-500',
+    [CardType.CHAPTER]: 'border-l-teal-500'
   };
   
   const visualClasses = isHighlighted 
-    ? "opacity-100 saturate-100 scale-100 shadow-xl border-indigo-500 ring-2 ring-indigo-100" 
-    : "opacity-80 grayscale-[0.1] scale-100 hover:opacity-100 hover:grayscale-0 hover:scale-[1.02] hover:shadow-2xl hover:border-indigo-400";
+    ? "opacity-100 scale-100 shadow-xl border-indigo-500 ring-2 ring-indigo-50" 
+    : "opacity-100 scale-100 hover:shadow-2xl hover:border-indigo-400";
   
   const charA = card.conflictSubjectAId ? charactersMap[card.conflictSubjectAId] : null;
   const charB = card.conflictSubjectBId ? charactersMap[card.conflictSubjectBId] : null;
   const primaryLoc = card.primaryLocationId ? locationsMap[card.primaryLocationId] : null;
 
-  const ribbonTags = useMemo(() => {
-    const list: any[] = [];
-    if (primaryLoc) list.push({ id: primaryLoc.id, label: primaryLoc.name, category: 'location', isPrimary: true });
-    if (charA) list.push({ id: charA.id, label: charA.name, category: 'character', isConflict: true });
-    if (charB) list.push({ id: charB.id, label: charB.name, category: 'character', isConflict: true });
-    (card.tags || []).forEach((tag: any) => {
-      if (!list.find(item => item.id === tag.id)) list.push(tag);
-    });
-    return list;
-  }, [card.tags, charA, charB, primaryLoc]);
+  const parentTitle = useMemo(() => {
+    if (!card.parentId) return null;
+    return cards[card.parentId]?.title;
+  }, [card.parentId, cards]);
 
   const stopPropagation = (fn: () => void) => (e: React.MouseEvent) => {
     e.stopPropagation();
     fn();
   };
 
+  const wordCount = (card.draftContent || '').split(/\s+/).filter(Boolean).length;
+
   return (
     <div 
-      className={`w-full ${isColumnHeader ? 'h-[250px]' : 'h-[230px]'} border-2 rounded-[32px] p-6 flex flex-col group transition-all relative z-10 overflow-hidden ${colors[card.type]} ${visualClasses} cursor-pointer`}
+      className={`w-full ${isColumnHeader ? 'h-[260px]' : 'h-[240px]'} border bg-white border-slate-200 rounded-3xl p-6 flex flex-col group transition-all relative z-10 overflow-hidden ${borderColors[card.type]} border-l-4 ${visualClasses} cursor-pointer`}
       onClick={() => onEdit(card.id)}
     >
-      {/* Type Label (Absolute Corner) */}
-      <div className="absolute top-4 right-6 text-[8px] font-black opacity-20 tracking-[0.2em] uppercase">
-        {card.type}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-1.5 overflow-hidden">
+          <span className="text-[9px] font-black uppercase text-indigo-500 tracking-wider shrink-0">
+            {typeLabels[card.type]}
+          </span>
+          {parentTitle && (
+            <div className="flex items-center gap-1.5 text-slate-300 shrink-0">
+              <ChevronRight size={10} strokeWidth={3} />
+              <span className="text-[9px] font-bold uppercase truncate max-w-[120px]">{parentTitle}</span>
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+           <button onClick={stopPropagation(() => onOpenWriter(card.id))} className="text-slate-400 hover:text-indigo-600"><FileText size={14} /></button>
+           <button onClick={stopPropagation(() => onEdit(card.id))} className="text-slate-400 hover:text-indigo-600"><Edit3 size={14} /></button>
+        </div>
       </div>
 
-      <div className="flex flex-col gap-1 mb-2">
-        <h3 className="font-black uppercase tracking-widest truncate leading-tight" style={{ fontSize: `${12 * cardScale}px` }}>
+      <div className="flex flex-col gap-1.5 mb-4 flex-1 min-h-0">
+        <h3 className="font-black text-slate-900 uppercase tracking-tight leading-tight truncate" style={{ fontSize: `${13 * cardScale}px` }}>
           {card.title}
         </h3>
-        <div className="flex items-center gap-1 opacity-40">
-           <div className={`w-2 h-2 rounded-full ${card.type === CardType.BEAT ? 'bg-amber-400' : card.type === CardType.SCENE ? 'bg-blue-400' : 'bg-teal-400'}`} />
-           <span className="text-[7px] font-black uppercase tracking-widest">Architectural Unit</span>
-        </div>
+        {card.chapterTitle && (
+          <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest truncate">Public: {card.chapterTitle}</p>
+        )}
+        <p className="font-desc text-slate-500 leading-relaxed italic opacity-80 overflow-hidden line-clamp-2 mt-1" style={{ fontSize: `${11 * cardScale}px` }}>
+          {card.description || "Define the core narrative movement..."}
+        </p>
       </div>
       
-      {/* Description with fixed line count to prevent pushing footer */}
-      <p className="font-desc leading-relaxed italic opacity-70 mb-3 overflow-hidden flex-shrink-0" style={{ fontSize: `${11 * cardScale}px`, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-        {card.description}
-      </p>
-      
-      {/* Tags section - flexible but contained */}
-      <div className="flex flex-wrap gap-1 mb-4 h-10 overflow-hidden shrink-0">
-        {ribbonTags.slice(0, 3).map((tag: any) => (
-          <div key={tag.id} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[7px] font-black uppercase transition-all shadow-sm ${tag.category === 'character' ? (charactersMap[tag.id]?.isVillain ? 'bg-rose-500 border-rose-600 text-white' : 'bg-emerald-500 border-emerald-600 text-white') : 'bg-indigo-600 border-indigo-700 text-white'}`}>
-            {tag.category === 'character' ? <User size={7} /> : <MapPin size={7} />}
-            {tag.label}
-          </div>
-        ))}
-        {ribbonTags.length > 3 && <span className="text-[7px] font-black text-slate-400 py-1">+{ribbonTags.length - 3}</span>}
-      </div>
-
-      {/* FOOTER SECTION: Always grounded with flex-grow and mt-auto */}
-      <div className="mt-auto pt-3 border-t border-black/[0.04] flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2 flex-1 truncate text-slate-500">
-          <Swords size={12 * cardScale} className="shrink-0 opacity-40" />
-          <span className="font-bold truncate opacity-80" style={{ fontSize: `${9 * cardScale}px` }}>
-            {charA && charB ? (
-              <span className="flex items-center gap-1.5">
-                <span className={charA.isVillain ? 'text-rose-600' : 'text-emerald-600'}>{charA.name}</span>
-                <span className="opacity-30">vs</span>
-                <span className={charB.isVillain ? 'text-rose-600' : 'text-emerald-600'}>{charB.name}</span>
-              </span>
-            ) : card.conflict || "Neutral Drama"}
-          </span>
-        </div>
-
-        {/* EMOTIONAL SIGN FLIP BADGE - Explicit Visibility */}
+      <div className="flex flex-wrap gap-2 mb-4 shrink-0 h-8 overflow-hidden">
         {card.emotionalValue && (
-          <div 
-            className={`px-3 py-1 rounded-full font-black uppercase shrink-0 shadow-lg border-2 z-20 ${card.emotionalValue === 'POSITIVE' ? 'bg-emerald-50 text-emerald-600 border-emerald-100 shadow-emerald-50' : 'bg-rose-50 text-rose-600 border-rose-100 shadow-rose-50'}`}
-            style={{ fontSize: `${11 * cardScale}px` }}
-          >
-            {card.emotionalValue === 'POSITIVE' ? '+' : '-'}
-          </div>
+           <div className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all ${card.emotionalValue === 'POSITIVE' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
+              {card.emotionalValue === 'POSITIVE' ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+              {card.emotionalValue} SHIFT
+           </div>
+        )}
+        {primaryLoc && (
+           <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border bg-slate-50 text-slate-500 border-slate-100">
+              <MapPin size={10} />
+              {primaryLoc.name}
+           </div>
         )}
       </div>
 
-      {/* Overlays and Floating Buttons */}
-      <div className="absolute inset-0 bg-indigo-600/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-      
-      <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0 z-30">
-          <button onClick={stopPropagation(() => onOpenKB(card.id))} className="p-2 bg-amber-500 text-white rounded-xl shadow-xl shadow-amber-200/50 hover:scale-110 transition-transform">
-            <BookOpen size={14} />
-          </button>
-          <button onClick={stopPropagation(() => onEdit(card.id))} className="p-2 bg-white border border-slate-100 text-slate-400 rounded-xl hover:text-indigo-600 shadow-xl shadow-indigo-100/10 transition-colors"><Edit3 size={14} /></button>
-          {card.type !== CardType.BEAT && (
-            <button onClick={stopPropagation(() => onDelete(card.id))} className="p-2 bg-white border border-slate-100 text-slate-400 rounded-xl hover:text-rose-600 shadow-xl shadow-rose-100/10 transition-colors"><Trash2 size={14} /></button>
-          )}
+      <div className="mt-auto pt-4 border-t border-slate-50 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2 max-w-[60%] overflow-hidden">
+           {charA && charB ? (
+             <div className="flex items-center gap-1">
+               <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black text-white ${charA.isVillain ? 'bg-rose-500' : 'bg-emerald-500'}`}>{charA.name[0]}</div>
+               <Swords size={10} className="text-slate-300 shrink-0" />
+               <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black text-white ${charB.isVillain ? 'bg-rose-500' : 'bg-emerald-500'}`}>{charB.name[0]}</div>
+             </div>
+           ) : (
+             <div className="flex items-center gap-2 text-slate-300">
+                <Users size={12} />
+                <span className="text-[9px] font-bold uppercase">Neutral Interaction</span>
+             </div>
+           )}
+        </div>
+
+        <div className="text-right">
+           <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest shadow-sm ${wordCount > 0 ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'text-slate-300'}`}>
+             W: {wordCount}
+           </span>
+        </div>
       </div>
 
+      <div className="absolute inset-0 bg-indigo-600/[0.02] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+      
       <button 
         onClick={stopPropagation(onAddSibling)} 
         className="absolute top-1/2 -right-4 -translate-y-1/2 opacity-0 group-hover:opacity-100 bg-white border border-slate-200 p-2 rounded-full shadow-2xl hover:scale-110 transition-all z-40 text-slate-400 hover:text-indigo-600 active:scale-90"
-        title="Add Sibling"
       >
         <Plus size={14} />
       </button>
@@ -310,11 +325,196 @@ const NarrativeCard = ({ card, charactersMap, locationsMap, onEdit, onDelete, on
         <button 
           onClick={stopPropagation(onAddChild)} 
           className="absolute -bottom-4 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-white border border-slate-200 p-2 rounded-full shadow-2xl hover:scale-110 transition-all z-40 text-slate-400 hover:text-indigo-600 active:scale-90"
-          title={`Add ${card.type === CardType.BEAT ? 'Scene' : 'Chapter'}`}
         >
           <Plus size={14} />
         </button>
       )}
+    </div>
+  );
+};
+
+const DraftingRoom = ({ card, cards, onClose, onUpdate, charactersMap, locationsMap }: { card: StoryCard, cards: Record<string, StoryCard>, onClose: () => void, onUpdate: (u: Partial<StoryCard>) => void, charactersMap: Record<string, Character>, locationsMap: Record<string, Location> }) => {
+  const charA = card.conflictSubjectAId ? charactersMap[card.conflictSubjectAId] : null;
+  const charB = card.conflictSubjectBId ? charactersMap[card.conflictSubjectBId] : null;
+  const primaryLoc = card.primaryLocationId ? locationsMap[card.primaryLocationId] : null;
+
+  const attendance = useMemo(() => {
+    return (card.tags || []).filter(t => t.category === 'character').map(t => charactersMap[t.id]).filter(Boolean);
+  }, [card.tags, charactersMap]);
+
+  const ancestorBeat = useMemo(() => {
+    const findAncestorBeat = (currentCard: StoryCard): StoryCard | null => {
+      if (currentCard.type === CardType.BEAT) return currentCard;
+      if (!currentCard.parentId) return null;
+      const parent = cards[currentCard.parentId];
+      if (!parent) return null;
+      return findAncestorBeat(parent);
+    };
+    return findAncestorBeat(card);
+  }, [card, cards]);
+
+  const wordCount = (card.draftContent || '').split(/\s+/).filter(Boolean).length;
+
+  return (
+    <div className="fixed inset-y-0 right-0 w-[calc(100vw-10px)] bg-white shadow-2xl z-[2000] border-l border-slate-200 flex flex-col animate-in slide-in-from-right duration-300">
+      {/* Header Bar */}
+      <div className="p-6 border-b flex items-center justify-between shrink-0 bg-slate-50/50">
+        <div className="flex items-center gap-6">
+          <button onClick={onClose} className="p-3 hover:bg-slate-200 rounded-full text-slate-500 transition-colors">
+            <ChevronRight size={32} />
+          </button>
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-indigo-100">
+              <FileText size={20} />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-slate-900 tracking-tight leading-tight truncate max-w-md">{card.title}</h2>
+              <p className="text-[9px] font-black uppercase text-indigo-500 tracking-[0.3em]">Architectural View • Drafting Active</p>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          <button onClick={onClose} className="p-2 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all">
+            <X size={24} />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 flex overflow-hidden">
+        {/* LEFT: Writing Area (EXPANSIVE) */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col items-stretch bg-white">
+          <div className="w-full px-12 py-16 min-h-full flex flex-col gap-10">
+            
+            {/* Status Strip */}
+            <div className="flex items-center justify-between text-slate-300 border-b border-slate-50 pb-6">
+              <div className="flex flex-col gap-1">
+                <span className="text-[9px] font-black uppercase tracking-[0.2em] flex items-center gap-2">
+                  <CheckCircle2 size={12} className="text-emerald-500" />
+                  Live Vault Sync • Garamond / Serif
+                </span>
+                {ancestorBeat && (
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                    Structural Anchor: <span className="text-amber-500">{ancestorBeat.title}</span>
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-6">
+                 <div className="flex flex-col items-end">
+                    <span className="text-[8px] font-black uppercase text-slate-400">Word Count</span>
+                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${wordCount > 0 ? 'bg-blue-50 text-blue-600' : 'text-slate-900'}`}>
+                      {wordCount} words
+                    </span>
+                 </div>
+                 <div className="flex flex-col items-end border-l border-slate-100 pl-4">
+                    <span className="text-[8px] font-black uppercase text-slate-400">Internal Reference Title</span>
+                    <input 
+                      value={card.title} 
+                      onChange={e => onUpdate({ title: e.target.value })} 
+                      className="text-[10px] font-bold text-indigo-600 bg-transparent border-none p-0 focus:ring-0 text-right w-40"
+                    />
+                 </div>
+              </div>
+            </div>
+
+            {/* Public Chapter Title (What the reader sees) */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                 <Book size={14} className="text-indigo-400" />
+                 <label className="text-[11px] font-black uppercase text-slate-400 tracking-[0.3em]">Public Chapter Title (Reader Facing)</label>
+              </div>
+              <input 
+                value={card.chapterTitle || ''} 
+                onChange={e => onUpdate({ chapterTitle: e.target.value })} 
+                placeholder="Enter the title your readers will see (e.g. Chapter One: The Arrival)"
+                className="w-full bg-transparent border-none p-0 text-5xl font-black text-slate-900 tracking-tight focus:ring-0 placeholder:text-slate-100 font-desc"
+              />
+            </div>
+
+            {/* Expansive Writing Area */}
+            <div className="flex-1 flex flex-col">
+              <textarea 
+                autoFocus
+                value={card.draftContent || ''} 
+                onChange={e => onUpdate({ draftContent: e.target.value })} 
+                placeholder="The first draft is just you telling yourself the story. Begin writing here..."
+                className="flex-1 w-full bg-transparent border-none focus:ring-0 p-0 text-3xl font-desc leading-[1.8] text-slate-800 resize-none placeholder:text-slate-50 min-h-[600px] pb-40"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT: Metadata Sidebar */}
+        <aside className="w-80 bg-slate-50/50 border-l border-slate-100 flex flex-col overflow-y-auto custom-scrollbar p-8 gap-8 shrink-0">
+          <div className="space-y-4">
+             <div className="flex items-center gap-3 text-slate-400">
+               <Sparkles size={16} />
+               <h4 className="text-[10px] font-black uppercase tracking-[0.2em]">Scene Blueprint</h4>
+             </div>
+             <div className="p-5 bg-white rounded-3xl border border-slate-100 shadow-sm space-y-3 relative overflow-hidden">
+               {card.emotionalValue && (
+                 <div className={`absolute top-0 right-0 px-2 py-1 rounded-bl-xl text-[10px] font-black ${card.emotionalValue === 'POSITIVE' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
+                    {card.emotionalValue === 'POSITIVE' ? 'POS' : 'NEG'}
+                 </div>
+               )}
+               <h5 className="text-xs font-black text-slate-800 uppercase tracking-widest leading-tight pr-8">{card.title}</h5>
+               <p className="text-xs font-desc italic leading-relaxed text-slate-500">
+                 {card.description || "No narrative blueprint defined."}
+               </p>
+             </div>
+          </div>
+
+          <div className="space-y-4">
+             <div className="flex items-center gap-3 text-rose-400">
+               <Swords size={16} />
+               <h4 className="text-[10px] font-black uppercase tracking-[0.2em]">Core Conflict</h4>
+             </div>
+             <div className="p-5 bg-rose-50/30 rounded-3xl border border-rose-100/30 space-y-3">
+               {charA && charB ? (
+                 <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between text-[11px] font-black uppercase">
+                      <span className={charA.isVillain ? 'text-rose-600' : 'text-emerald-600'}>{charA.name}</span>
+                      <span className="text-slate-300 mx-2">vs</span>
+                      <span className={charB.isVillain ? 'text-rose-600' : 'text-emerald-600'}>{charB.name}</span>
+                    </div>
+                    {card.conflict && <p className="text-[10px] font-bold text-slate-500 border-t border-rose-100/50 pt-2">{card.conflict}</p>}
+                 </div>
+               ) : (
+                 <p className="text-xs font-bold text-slate-700">{card.conflict || "Internal Struggle / Tension"}</p>
+               )}
+             </div>
+          </div>
+
+          <div className="space-y-4">
+             <div className="flex items-center gap-3 text-emerald-500">
+               <Users size={16} />
+               <h4 className="text-[10px] font-black uppercase tracking-[0.2em]">Cast in Attendance</h4>
+             </div>
+             <div className="flex flex-wrap gap-2">
+               {attendance.length > 0 ? attendance.map(char => (
+                 <div key={char.id} className={`px-3 py-1.5 rounded-xl border text-[9px] font-black uppercase flex items-center gap-1.5 ${char.isVillain ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-emerald-50 border-emerald-100 text-emerald-600'}`}>
+                   <User size={10} />
+                   {char.name}
+                 </div>
+               )) : (
+                 <p className="text-[10px] font-bold text-slate-400 italic">No cast members linked.</p>
+               )}
+             </div>
+          </div>
+
+          <div className="space-y-4">
+             <div className="flex items-center gap-3 text-indigo-500">
+               <MapPin size={16} />
+               <h4 className="text-[10px] font-black uppercase tracking-[0.2em]">Setting</h4>
+             </div>
+             <div className="p-4 bg-white rounded-2xl border border-slate-100 flex items-center gap-3 shadow-sm">
+               <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-500 flex items-center justify-center">
+                 <MapPin size={14} />
+               </div>
+               <span className="text-xs font-black text-slate-700 truncate">{primaryLoc?.name || "Unset Location"}</span>
+             </div>
+          </div>
+        </aside>
+      </div>
     </div>
   );
 };
@@ -346,14 +546,9 @@ const KBViewer = ({ card, cards, knowledgeBase = {}, onClose }: { card: StoryCar
     setError(null);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const prompt = `
-        System Instructions: ${article.aiScript}
-        Context: ${card.title} - ${card.description}
-        Review and provide coaching advice.
-      `;
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: prompt,
+        contents: `Coaching Request for ${card.title}. Instructions: ${article.aiScript}. Content: ${card.description}`,
       });
       setCoachingAdvice(response.text);
     } catch (err: any) {
@@ -445,12 +640,16 @@ const STCCardEditor = ({ card, onClose, onUpdate, characters, locations }: any) 
         {activeTab === 'STORY' && (
           <div className="space-y-10">
             <div className="space-y-4">
-              <label className="text-base font-black uppercase text-slate-400 tracking-widest">Title</label>
-              <input value={card.title} onChange={e => onUpdate({ title: e.target.value })} className="w-full text-4xl font-bold border-none p-0 focus:ring-0 placeholder:text-slate-200" />
+              <label className="text-base font-black uppercase text-slate-400 tracking-widest">Architectural Title (Internal Reference)</label>
+              <input value={card.title} onChange={e => onUpdate({ title: e.target.value })} className="w-full text-2xl font-bold border-none p-0 focus:ring-0 placeholder:text-slate-200" />
+            </div>
+            <div className="space-y-4">
+              <label className="text-base font-black uppercase text-slate-400 tracking-widest">Chapter Title (Reader Facing)</label>
+              <input value={card.chapterTitle || ''} onChange={e => onUpdate({ chapterTitle: e.target.value })} className="w-full text-2xl font-desc italic border-none p-0 focus:ring-0 placeholder:text-slate-200" placeholder="e.g. Chapter One: The Void" />
             </div>
             <div className="space-y-4">
               <label className="text-base font-black uppercase text-slate-400 tracking-widest">Narrative Action</label>
-              <textarea value={card.description} onChange={e => onUpdate({ description: e.target.value })} className="w-full h-64 text-2xl text-slate-600 border-none p-0 focus:ring-0 resize-none font-desc leading-relaxed" />
+              <textarea value={card.description} onChange={e => onUpdate({ description: e.target.value })} className="w-full h-64 text-xl text-slate-600 border-none p-0 focus:ring-0 resize-none font-desc leading-relaxed" />
             </div>
           </div>
         )}
@@ -468,11 +667,11 @@ const STCCardEditor = ({ card, onClose, onUpdate, characters, locations }: any) 
               <div className="grid grid-cols-2 gap-6">
                 <select value={card.conflictSubjectAId || ''} onChange={e => onUpdate({ conflictSubjectAId: e.target.value })} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-lg font-bold text-slate-600">
                   <option value="">Subject A</option>
-                  {characters.map((char: any) => <option key={char.id} value={char.id}>{char.name}</option>)}
+                  {(characters || []).map((char: any) => <option key={char.id} value={char.id}>{char.name}</option>)}
                 </select>
                 <select value={card.conflictSubjectBId || ''} onChange={e => onUpdate({ conflictSubjectBId: e.target.value })} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-lg font-bold text-slate-600">
                   <option value="">Subject B</option>
-                  {characters.map((char: any) => <option key={char.id} value={char.id}>{char.name}</option>)}
+                  {(characters || []).map((char: any) => <option key={char.id} value={char.id}>{char.name}</option>)}
                 </select>
               </div>
             </div>
@@ -483,7 +682,7 @@ const STCCardEditor = ({ card, onClose, onUpdate, characters, locations }: any) 
             <div className="space-y-6">
               <label className="text-base font-black uppercase text-slate-400 tracking-widest">Cast In Attendance</label>
               <div className="flex flex-wrap gap-3">
-                {characters.map((char: any) => {
+                {(characters || []).map((char: any) => {
                   const isTagged = card.tags?.some((t: any) => t.id === char.id);
                   return (
                     <button key={char.id} onClick={stopPropagation(() => toggleTag(char.id, char.name, 'character'))} className={`px-6 py-3 rounded-2xl text-base font-bold border transition-all ${isTagged ? 'bg-indigo-600 border-indigo-600 text-white shadow-md' : 'bg-white text-slate-400 border-slate-200'}`}>{char.name}</button>
@@ -495,7 +694,7 @@ const STCCardEditor = ({ card, onClose, onUpdate, characters, locations }: any) 
               <label className="text-base font-black uppercase text-slate-400 tracking-widest">Primary Location</label>
               <select value={card.primaryLocationId || ''} onChange={e => onUpdate({ primaryLocationId: e.target.value })} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 text-lg font-bold text-slate-600">
                 <option value="">Select Location...</option>
-                {locations.map((loc: any) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
+                {(locations || []).map((loc: any) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
               </select>
             </div>
           </div>

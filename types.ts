@@ -19,11 +19,20 @@ export interface KBArticle {
   lastUpdated: number;
 }
 
+export interface AIScript {
+  id: string;
+  title: string;
+  content: string;
+  isDefault?: boolean;
+}
+
 export interface StoryCard {
   id: string;
   type: CardType;
-  title: string;
+  title: string; // Architectural title (e.g., "The Midpoint Brawl")
+  chapterTitle?: string; // Reader-facing title (e.g., "Chapter 12: The Fall")
   description: string;
+  draftContent?: string; // The actual written prose/words
   notes?: string;
   tags: Tag[];
   children: string[];
@@ -108,6 +117,7 @@ export interface Project {
   locationOrder: string[];
   planning: STCPlanning;
   knowledgeBase: Record<string, KBArticle>;
+  aiScripts: Record<string, AIScript>;
 }
 
 export interface UserProfile {

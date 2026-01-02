@@ -130,8 +130,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, dbStatus, dbErrorMsg
                   </div>
                   <h3 className="text-2xl font-black text-slate-900">Inspiration Interrupted</h3>
                   <p className="text-rose-500 font-bold uppercase text-[10px] tracking-widest mt-2">We couldn't reach the story vault</p>
-                  <div className="mt-6 w-full bg-slate-900 rounded-2xl p-6 text-left font-mono text-[11px] text-rose-400 overflow-auto max-h-40 custom-scrollbar border border-slate-800">
-                    <p className="text-slate-500 mb-2 border-b border-slate-800 pb-2 uppercase tracking-widest font-black text-[9px]">Diagnostic Log</p>
+                  <div className="mt-6 w-full bg-rose-50 rounded-2xl p-6 text-left font-mono text-[11px] text-rose-700 overflow-auto max-h-40 custom-scrollbar border border-rose-100 shadow-inner">
+                    <p className="text-rose-400 mb-2 border-b border-rose-100 pb-2 uppercase tracking-widest font-black text-[9px]">Diagnostic Log</p>
                     <pre className="whitespace-pre-wrap">{dbErrorMsg}</pre>
                   </div>
                   <button 

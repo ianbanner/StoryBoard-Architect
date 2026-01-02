@@ -6,7 +6,7 @@ import {
   Database, Cloud, Layout, Binary, RefreshCw, Layers, Users, 
   MapPin, Target, ChevronRight, X, AlertTriangle, CheckCircle2, 
   ArrowRightLeft, MinusCircle, PlusCircle, Clock, GitBranch, BookOpen, ShieldCheck, Hash, ShieldAlert, Lock, Info, Activity,
-  Search, ChevronDown, ListTree, ChevronDownSquare, Layers3, User, Swords
+  Search, ChevronDown, ListTree, ChevronDownSquare, Layers3, User, Swords, Book
 } from 'lucide-react';
 import { StoryboardState, CardType, Project, UserProfile, StoryCard, Character, Location } from './types';
 
@@ -72,7 +72,7 @@ const DataExplorer: React.FC<Props> = ({ localState }) => {
         <div className="space-y-1">
           <h2 className="text-4xl font-black text-slate-900 tracking-tight flex items-center gap-4">
             <Binary className="text-indigo-600" size={40} />
-            Data Integrity Explorer
+            Data Explorer
           </h2>
           <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-2 ml-1">Structural Audit & Sync Diagnostics</p>
         </div>
@@ -159,7 +159,7 @@ const DataExplorer: React.FC<Props> = ({ localState }) => {
                 <div className="space-y-6">
                   <div>
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">Local Browser Memory (JSON)</span>
-                    <pre className="bg-slate-900 text-indigo-300 p-8 rounded-3xl text-[11px] font-mono overflow-auto max-h-[400px] custom-scrollbar border border-slate-800 shadow-inner">
+                    <pre className="bg-slate-50 text-indigo-900 p-8 rounded-3xl text-[11px] font-mono overflow-auto max-h-[400px] custom-scrollbar border border-slate-200 shadow-inner">
                       {JSON.stringify(localState.users, null, 2)}
                     </pre>
                   </div>
@@ -187,7 +187,7 @@ const DataExplorer: React.FC<Props> = ({ localState }) => {
                 <div className="space-y-6">
                   <div>
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">Ignored Refinement Hashes (Local)</span>
-                    <pre className="bg-slate-900 text-amber-300 p-8 rounded-3xl text-[11px] font-mono overflow-auto max-h-[400px] custom-scrollbar border border-slate-800 shadow-inner">
+                    <pre className="bg-slate-50 text-amber-900 p-8 rounded-3xl text-[11px] font-mono overflow-auto max-h-[400px] custom-scrollbar border border-slate-200 shadow-inner">
                       {JSON.stringify(localState.ignoredCleanupHashes, null, 2)}
                     </pre>
                   </div>
@@ -315,7 +315,6 @@ const AssetContainer = ({ title, icon, project, filter, loading, isRemote, accen
   );
 };
 
-// Fixed: Added key to type definition to satisfy strict TS check during mapping
 const RecursiveCardRow = ({ id, cards, depth, index }: { id: string; cards: Record<string, StoryCard>; depth: number; index?: number; key?: React.Key }) => {
   const card = cards[id];
   if (!card) return null;
@@ -339,12 +338,20 @@ const RecursiveCardRow = ({ id, cards, depth, index }: { id: string; cards: Reco
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 truncate">
-              {index !== undefined && <span className="text-xs font-black text-slate-300">{index}.</span>}
-              <span className="text-sm font-black truncate">{card.title}</span>
-              <span className="text-[8px] font-black uppercase tracking-widest bg-white/50 px-1.5 py-0.5 rounded border border-black/5 opacity-60">
-                {card.type}
-              </span>
+            <div className="flex flex-col truncate">
+              <div className="flex items-center gap-2">
+                {index !== undefined && <span className="text-xs font-black text-slate-300">{index}.</span>}
+                <span className="text-sm font-black truncate">{card.title}</span>
+                <span className="text-[8px] font-black uppercase tracking-widest bg-white/50 px-1.5 py-0.5 rounded border border-black/5 opacity-60">
+                  {card.type}
+                </span>
+              </div>
+              {card.chapterTitle && (
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <Book size={10} className="text-indigo-400" />
+                  <span className="text-[10px] font-black text-indigo-500/80 uppercase tracking-widest truncate">Pub: {card.chapterTitle}</span>
+                </div>
+              )}
             </div>
             {card.emotionalValue && (
               <span className={`text-[8px] font-black px-1.5 py-0.5 rounded ${card.emotionalValue === 'POSITIVE' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
@@ -355,17 +362,10 @@ const RecursiveCardRow = ({ id, cards, depth, index }: { id: string; cards: Reco
           <p className="text-[10px] text-slate-500 font-desc italic line-clamp-1 mt-1 opacity-80">
             {card.description || "No narrative details."}
           </p>
-          {card.conflict && (
-            <div className="flex items-center gap-1.5 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              <Swords size={10} className="text-slate-400" />
-              <span className="text-[9px] font-bold text-slate-400 truncate">{card.conflict}</span>
-            </div>
-          )}
         </div>
       </div>
       {childIds.length > 0 && (
         <div className="relative">
-          {/* Thread Line */}
           <div className="absolute left-3 top-0 bottom-4 w-0.5 bg-slate-100 pointer-events-none" />
           {childIds.map((childId) => (
             <RecursiveCardRow key={childId} id={childId} cards={cards} depth={depth + 1} />

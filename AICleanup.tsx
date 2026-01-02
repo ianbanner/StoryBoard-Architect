@@ -45,8 +45,6 @@ const AICleanup: React.FC<Props> = ({ state, onUpdateState, onSync }) => {
     setSummaryCount(null);
 
     try {
-      // 1. Prepare Data Payload
-      // Fixed: Cast Object.values results to fix property access on unknown types
       const payload: any = {
         projectName: activeProject.name,
         planning: activeProject.planning,
@@ -67,6 +65,7 @@ const AICleanup: React.FC<Props> = ({ state, onUpdateState, onSync }) => {
         cards: (Object.values(activeProject.cards || {}) as StoryCard[]).map(c => ({
           id: c.id,
           title: c.title,
+          chapterTitle: c.chapterTitle, // Included reader-facing title
           description: c.description,
           conflict: c.conflict
         }))
@@ -124,7 +123,6 @@ const AICleanup: React.FC<Props> = ({ state, onUpdateState, onSync }) => {
     const newState = JSON.parse(JSON.stringify(state)) as StoryboardState;
     const project = newState.projects[newState.activeProjectId];
 
-    // Apply selected changes
     selected.forEach(s => {
       const parts = s.path.split('.');
       let current: any = project;
@@ -134,19 +132,16 @@ const AICleanup: React.FC<Props> = ({ state, onUpdateState, onSync }) => {
       }
       if (current && typeof current[parts[parts.length - 1]] === 'string') {
         const field = parts[parts.length - 1];
-        // Replace the specific original text in the field if it exists
         current[field] = current[field].replace(s.original, s.suggested);
       }
     });
 
-    // Save ignored hashes
     const existingIgnored = newState.ignoredCleanupHashes || [];
     newState.ignoredCleanupHashes = [...new Set([...existingIgnored, ...unselectedHashes])];
     
     onUpdateState(newState);
     setSummaryCount(selected.length);
     
-    // Sync to cloud
     await onSync();
     
     setIsApplying(false);

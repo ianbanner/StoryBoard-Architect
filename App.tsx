@@ -1,9 +1,9 @@
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Zap, Search, LayoutDashboard, Users, MapPin, Compass, Cloud, Target, Loader2, LogOut, ShieldCheck, CheckCircle2, AlertCircle, ChevronDown, Settings, Database, Binary, BookOpen, Plus, Minus, Sparkles, UserPlus, Lock, ShieldAlert, CheckSquare, Square, Trash2, Key } from 'lucide-react';
+import { Zap, Search, LayoutDashboard, Users, MapPin, Compass, Cloud, Target, Loader2, LogOut, ShieldCheck, CheckCircle2, AlertCircle, ChevronDown, Settings, Database, Binary, BookOpen, Plus, Minus, Sparkles, UserPlus, Lock, ShieldAlert, CheckSquare, Square, Trash2, Key, Gavel, FileDown, Terminal } from 'lucide-react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, setDoc, getDoc, initializeFirestore } from 'firebase/firestore';
-import { CardType, StoryCard, StoryboardState, Project, AuthUser, Location, Character, KBArticle, UserProfile, Tag } from './types';
+import { CardType, StoryCard, StoryboardState, Project, AuthUser, Location, Character, KBArticle, UserProfile, Tag, AIScript } from './types';
 import { SidebarItem } from './CommonUI';
 
 // Modular Components
@@ -16,6 +16,9 @@ import FirebaseSync from './FirebaseSync';
 import DataExplorer from './DataExplorer';
 import KnowledgeBaseEditor from './KnowledgeBaseEditor';
 import AICleanup from './AICleanup';
+import GovernanceHub from './GovernanceHub';
+import AIScriptsEditor from './AIScriptsEditor';
+import ExportHub from './ExportHub';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
@@ -98,6 +101,25 @@ const performNarrativePruning = (project: Project) => {
     });
 
     project.beatOrder = validNumberedTitles.map(t => beatTitleToId[t]);
+
+    // Ensure AI Scripts registry exists
+    if (!project.aiScripts) {
+      project.aiScripts = {};
+      const defaultId = generateId();
+      project.aiScripts[defaultId] = {
+        id: defaultId,
+        title: "Master Narrative Persona",
+        content: "Writer Persona: High-fidelity narrative architect.\nWriting Style: Cinematic, emotive, and structured.\nAudience: Fans of complex character-driven thrillers.",
+        isDefault: true
+      };
+      
+      const formattingId = generateId();
+      project.aiScripts[formattingId] = {
+        id: formattingId,
+        title: "Formatting Output",
+        content: "You are a professional copywriter and formatter of scripts for films and content for books.\n\nUse the following instructions for formatting the output.\n\nShow each chapter title on its own page as a centred text in large font, and it must include the chapter number. The chapter numbers are decided by you and should be contiguous."
+      };
+    }
 };
 
 const createEmptyProject = (id: string, name: string): Project => {
@@ -113,6 +135,7 @@ const createEmptyProject = (id: string, name: string): Project => {
     locations: {},
     locationOrder: [],
     knowledgeBase: {},
+    aiScripts: {},
     planning: {
       title: name,
       projectName: name,
@@ -131,12 +154,12 @@ const SUPERUSER_CONFIG: UserProfile = {
   email: "dave@bigagility.com",
   password: "funnypig",
   isSuperuser: true,
-  permissions: { KB: true, AI_CLEANUP: true, FIREBASE: true, DATA_EXPLORER: true, ADMIN: true }
+  permissions: { KB: true, AI_CLEANUP: true, FIREBASE: true, DATA_EXPLORER: true, ADMIN: true, GOVERNANCE: true, PUBLISHING: true, AI_SCRIPTS: true }
 };
 
 const App: React.FC = () => {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [activeView, setActiveView] = useState<'STORYBOARD' | 'PEOPLE' | 'LOCATIONS' | 'PLANNING' | 'FIREBASE' | 'ADMIN' | 'DATA_EXPLORER' | 'KB' | 'AI_CLEANUP'>('PLANNING');
+  const [activeView, setActiveView] = useState<'STORYBOARD' | 'PEOPLE' | 'LOCATIONS' | 'PLANNING' | 'FIREBASE' | 'ADMIN' | 'DATA_EXPLORER' | 'KB' | 'AI_CLEANUP' | 'GOVERNANCE' | 'PUBLISHING' | 'AI_SCRIPTS'>('PLANNING');
   const [searchQuery, setSearchQuery] = useState('');
   const [sbFontSize, setSbFontSize] = useState(12);
   const [visibilityMode, setVisibilityMode] = useState<'FOCUS' | 'HIDDEN'>('FOCUS');
@@ -187,7 +210,7 @@ const App: React.FC = () => {
   useEffect(() => { stateRef.current = state; }, [state]);
 
   const syncToCloud = useCallback(async () => {
-    if (dbStatus !== 'SUCCESS' || !isHydrated) return; 
+    if (dbStatus !== 'SUCCESS' || !isHydrated || !user) return; 
     try {
       const db = getFirestoreInstance();
       const stateDoc = doc(db, "data", "storyboard_state");
@@ -195,7 +218,7 @@ const App: React.FC = () => {
     } catch (err) {
       console.warn("Auto-sync skipped.", err);
     }
-  }, [dbStatus, isHydrated]);
+  }, [dbStatus, isHydrated, user]);
 
   const handleCloudRestore = useCallback(async () => {
     if (isSyncing || dbStatus !== 'SUCCESS') return;
@@ -209,10 +232,21 @@ const App: React.FC = () => {
         const remoteState = snap.data() as StoryboardState;
         if (!remoteState.users) remoteState.users = {};
         if (!remoteState.ignoredCleanupHashes) remoteState.ignoredCleanupHashes = [];
-        const usersList = Object.values(remoteState.users);
-        if (!usersList.some(u => u.email.toLowerCase() === "dave@bigagility.com")) {
+        
+        // Force Dave's superuser status in the remote state
+        const daveEmail = "dave@bigagility.com";
+        const daveKey = Object.keys(remoteState.users).find(k => remoteState.users[k].email.toLowerCase() === daveEmail);
+        
+        if (!daveKey) {
           remoteState.users[SUPERUSER_CONFIG.id] = SUPERUSER_CONFIG;
+        } else {
+          remoteState.users[daveKey] = {
+            ...remoteState.users[daveKey],
+            ...SUPERUSER_CONFIG,
+            id: daveKey 
+          };
         }
+
         Object.values(remoteState.projects).forEach(project => {
             performNarrativePruning(project);
         });
@@ -232,6 +266,7 @@ const App: React.FC = () => {
     }
   }, [dbStatus, isHydrated, handleCloudRestore]);
 
+  // View Switch Sync
   useEffect(() => {
     if (prevViewRef.current !== activeView && user && isHydrated) {
       syncToCloud();
@@ -239,18 +274,32 @@ const App: React.FC = () => {
     }
   }, [activeView, syncToCloud, user, isHydrated]);
 
+  // Debounced Auto-Sync on state change
+  useEffect(() => {
+    if (!user || !isHydrated || dbStatus !== 'SUCCESS') return;
+    const timer = setTimeout(() => {
+      syncToCloud();
+    }, 3000); 
+    return () => clearTimeout(timer);
+  }, [state, user, isHydrated, dbStatus, syncToCloud]);
+
   const handleLogin = (email: string, pass: string) => {
     setMembershipError(false);
-    const usersList = Object.values(state.users || {}) as UserProfile[];
-    let existingUser = usersList.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (!existingUser && email.toLowerCase() === "dave@bigagility.com") {
-      existingUser = SUPERUSER_CONFIG;
+    
+    if (email.toLowerCase() === "dave@bigagility.com" && pass === "funnypig") {
+      setUser(SUPERUSER_CONFIG);
+      return;
     }
+
+    const usersList = Object.values(state.users || {}) as UserProfile[];
+    const existingUser = usersList.find(u => u.email.toLowerCase() === email.toLowerCase());
+
     if (!existingUser) {
       setMembershipError(true);
       return;
     }
-    if (pass === 'funnypig' || pass === existingUser.password) {
+
+    if (pass === existingUser.password) {
       setUser(existingUser);
     } else {
       alert("Invalid password.");
@@ -260,6 +309,7 @@ const App: React.FC = () => {
   const activeProject = state.projects[state.activeProjectId];
 
   const updateActiveProject = (updates: Partial<Project>) => {
+    if (!state.activeProjectId) return;
     setState(prev => ({
       ...prev,
       projects: {
@@ -274,6 +324,7 @@ const App: React.FC = () => {
   };
 
   const handleAddChild = (parentId: string) => {
+    if (!activeProject) return;
     const parent = activeProject.cards[parentId];
     if (!parent) return;
     const newId = generateId();
@@ -297,6 +348,7 @@ const App: React.FC = () => {
   };
 
   const handleAddSibling = (id: string) => {
+    if (!activeProject) return;
     const card = activeProject.cards[id];
     if (!card || !card.parentId) return;
     const parent = activeProject.cards[card.parentId];
@@ -324,6 +376,7 @@ const App: React.FC = () => {
   };
 
   const handleDeleteCard = (id: string) => {
+    if (!activeProject) return;
     const card = activeProject.cards[id];
     if (!card) return;
     if (card.type === CardType.BEAT) {
@@ -355,18 +408,19 @@ const App: React.FC = () => {
   };
 
   const isCardMatching = (id: string) => {
-    if (!searchQuery) return true;
+    if (!searchQuery || !activeProject) return true;
     const card = activeProject.cards[id];
+    if (!card) return false;
     const query = searchQuery.toLowerCase();
-    return card.title.toLowerCase().includes(query) || card.description.toLowerCase().includes(query);
+    return card.title.toLowerCase().includes(query) || (card.description || "").toLowerCase().includes(query);
   };
 
   const shouldRenderCard = (id: string) => {
-    if (visibilityMode === 'FOCUS' || !searchQuery) return true;
+    if (visibilityMode === 'FOCUS' || !searchQuery || !activeProject) return true;
     const checkMatch = (cid: string): boolean => {
       const card = activeProject.cards[cid];
       if (!card) return false;
-      if (card.title.toLowerCase().includes(searchQuery.toLowerCase()) || card.description.toLowerCase().includes(searchQuery.toLowerCase())) return true;
+      if (card.title.toLowerCase().includes(searchQuery.toLowerCase()) || (card.description || "").toLowerCase().includes(searchQuery.toLowerCase())) return true;
       return card.children.some(checkMatch);
     };
     return checkMatch(id);
@@ -376,8 +430,9 @@ const App: React.FC = () => {
     return <LandingPage onLogin={handleLogin} dbStatus={dbStatus} dbErrorMsg={dbErrorMsg} showInitModal={showInitModal} onCloseInitModal={() => setShowInitModal(false)} membershipError={membershipError} />;
   }
 
-  const isAdminActive = ['ADMIN', 'FIREBASE', 'DATA_EXPLORER', 'KB', 'AI_CLEANUP'].includes(activeView);
+  const isAdminActive = ['ADMIN', 'FIREBASE', 'DATA_EXPLORER', 'KB', 'AI_CLEANUP', 'GOVERNANCE', 'PUBLISHING', 'AI_SCRIPTS'].includes(activeView);
   const userPerms = user.permissions || {};
+  const isDave = user.email.toLowerCase() === "dave@bigagility.com";
 
   return (
     <div className="flex h-screen bg-slate-50 font-ui overflow-hidden">
@@ -409,10 +464,13 @@ const App: React.FC = () => {
                 </button>
                 {isAdminExpanded && (
                   <div className="flex flex-col gap-1 pl-2">
+                    {isDave && <SidebarItem isSubmenu icon={<Gavel size={18} />} label="Governance" active={activeView === 'GOVERNANCE'} onClick={() => setActiveView('GOVERNANCE')} />}
                     {userPerms.KB && <SidebarItem isSubmenu icon={<BookOpen size={18} />} label="KB Editor" active={activeView === 'KB'} onClick={() => setActiveView('KB')} />}
+                    {userPerms.AI_SCRIPTS && <SidebarItem isSubmenu icon={<Terminal size={18} />} label="AI Scripts" active={activeView === 'AI_SCRIPTS'} onClick={() => setActiveView('AI_SCRIPTS')} />}
                     {userPerms.AI_CLEANUP && <SidebarItem isSubmenu icon={<Sparkles size={18} />} label="AI Cleanup" active={activeView === 'AI_CLEANUP'} onClick={() => setActiveView('AI_CLEANUP')} />}
                     {userPerms.FIREBASE && <SidebarItem isSubmenu icon={<Cloud size={18} />} label="Cloud Vault" active={activeView === 'FIREBASE'} onClick={() => setActiveView('FIREBASE')} />}
-                    {userPerms.DATA_EXPLORER && <SidebarItem isSubmenu icon={<Binary size={18} />} label="Data Mirror" active={activeView === 'DATA_EXPLORER'} onClick={() => setActiveView('DATA_EXPLORER')} />}
+                    {userPerms.DATA_EXPLORER && <SidebarItem isSubmenu icon={<Binary size={18} />} label="Data Explorer" active={activeView === 'DATA_EXPLORER'} onClick={() => setActiveView('DATA_EXPLORER')} />}
+                    {userPerms.PUBLISHING && <SidebarItem isSubmenu icon={<FileDown size={18} />} label="Publishing" active={activeView === 'PUBLISHING'} onClick={() => setActiveView('PUBLISHING')} />}
                   </div>
                 )}
               </div>
@@ -454,7 +512,12 @@ const App: React.FC = () => {
         </header>
 
         <div className={`flex-1 overflow-auto custom-scrollbar bg-[#f8fafc] ${activeView === 'STORYBOARD' ? 'p-0' : 'p-10'}`}>
-          {activeProject && (
+          {!isHydrated && dbStatus === 'SUCCESS' ? (
+            <div className="h-full flex flex-col items-center justify-center gap-6 text-slate-400">
+               <Loader2 size={48} className="animate-spin text-indigo-600" />
+               <p className="font-desc italic text-lg">Reconstructing the Story Vault...</p>
+            </div>
+          ) : activeProject ? (
             <>
               {activeView === 'PLANNING' && (
                 <div className="max-w-7xl mx-auto">
@@ -541,7 +604,15 @@ const App: React.FC = () => {
               {activeView === 'FIREBASE' && <div className="max-w-6xl mx-auto"><FirebaseSync state={state} onUpdateState={setState} /></div>}
               {activeView === 'DATA_EXPLORER' && <div className="max-w-full"><DataExplorer localState={state} /></div>}
               {activeView === 'AI_CLEANUP' && <div className="max-w-4xl mx-auto"><AICleanup state={state} onUpdateState={setState} onSync={syncToCloud} /></div>}
+              {activeView === 'GOVERNANCE' && isDave && <div className="max-w-4xl mx-auto"><GovernanceHub state={state} onUpdateState={setState} /></div>}
+              {activeView === 'AI_SCRIPTS' && <div className="max-w-4xl mx-auto"><AIScriptsEditor scripts={activeProject.aiScripts || {}} onUpdateScripts={(updated) => updateActiveProject({ aiScripts: updated })} /></div>}
+              {activeView === 'PUBLISHING' && <div className="max-w-4xl mx-auto"><ExportHub project={activeProject} /></div>}
             </>
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center gap-4 text-slate-400">
+               <AlertCircle size={48} />
+               <p className="font-desc italic text-lg">No active project context found.</p>
+            </div>
           )}
         </div>
       </main>
