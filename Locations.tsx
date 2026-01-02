@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { MapPin, Edit3, Trash2, ChevronRight } from 'lucide-react';
+import { MapPin, Edit3, Trash2, ChevronRight, Plus } from 'lucide-react';
 import { Location } from './types';
 import { STCEditorField } from './CommonUI';
 
@@ -9,23 +9,50 @@ interface Props {
   locationOrder: string[];
   onUpdate: (id: string, updates: Partial<Location>) => void;
   onDelete: (id: string) => void;
+  onAdd: () => void;
 }
 
-const Locations: React.FC<Props> = ({ locations, locationOrder, onUpdate, onDelete }) => {
+const Locations: React.FC<Props> = ({ locations, locationOrder, onUpdate, onDelete, onAdd }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   return (
-    <div className="max-w-6xl mx-auto py-8">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {locationOrder.map(id => (
-          <LocationCard 
-            key={id} 
-            location={locations[id]} 
-            onEdit={() => setEditingId(id)}
-            onDelete={() => onDelete(id)}
-          />
-        ))}
+    <div className="max-w-6xl mx-auto space-y-8">
+      <div className="flex items-center justify-between bg-white border-2 border-slate-100 rounded-3xl p-6 shadow-sm">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-100">
+            <MapPin size={24} />
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Locations</h2>
+            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Story Setting Registry</p>
+          </div>
+        </div>
+        <button 
+          onClick={onAdd}
+          className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100"
+        >
+          <Plus size={18} /> Add Location
+        </button>
       </div>
+
+      {locationOrder.length === 0 ? (
+        <div className="py-40 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-[40px] opacity-40">
+           <MapPin size={64} className="text-slate-200 mb-6" />
+           <p className="font-desc italic text-slate-400">Your world is currently empty. Define a location to ground your story.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {locationOrder.map(id => (
+            <LocationCard 
+              key={id} 
+              location={locations[id]} 
+              onEdit={() => setEditingId(id)}
+              onDelete={() => onDelete(id)}
+            />
+          ))}
+        </div>
+      )}
+      
       {editingId && locations[editingId] && (
         <LocationEditor 
           location={locations[editingId]} 
@@ -49,7 +76,7 @@ const LocationCard = ({ location, onEdit, onDelete }: any) => (
       </div>
     </div>
     <h3 className="text-lg font-bold text-slate-900 mb-1">{location.name}</h3>
-    <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500">Asset Registry</p>
+    <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500">Location Registry</p>
     <p className="mt-4 text-xs text-slate-500 font-desc italic leading-relaxed line-clamp-3">{location.description}</p>
     <div className="mt-6 pt-6 border-t border-slate-100">
        <span className="text-[9px] font-black uppercase text-slate-400">Significance</span>
@@ -87,7 +114,7 @@ const LocationEditor = ({ location, onClose, onUpdate }: any) => {
              value={location.significance} 
              onChange={e => onUpdate({ significance: e.target.value })} 
              className="w-full h-40 bg-slate-50 border-none rounded-3xl p-6 text-xl font-medium focus:ring-2 focus:ring-indigo-100 resize-none placeholder:text-slate-200" 
-             placeholder="Why does this place matter to the story?" 
+             placeholder="Why does this location matter to the story?" 
            />
         </div>
       </div>

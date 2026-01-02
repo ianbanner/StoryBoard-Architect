@@ -11,6 +11,14 @@ export interface Tag {
   category: 'character' | 'location' | 'theme';
 }
 
+export interface KBArticle {
+  id: string;
+  title: string;
+  content: string;
+  aiScript?: string; // Instructions for the AI Coach
+  lastUpdated: number;
+}
+
 export interface StoryCard {
   id: string;
   type: CardType;
@@ -90,6 +98,8 @@ export interface ProjectInfo {
 export interface Project {
   id: string;
   name: string;
+  lastModified?: number;
+  versionLabel?: string;
   cards: Record<string, StoryCard>;
   beatOrder: string[];
   characters: Record<string, Character>;
@@ -97,6 +107,19 @@ export interface Project {
   locations: Record<string, Location>;
   locationOrder: string[];
   planning: STCPlanning;
+  knowledgeBase: Record<string, KBArticle>;
+}
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  password?: string;
+  isSuperuser: boolean;
+  permissions: Record<string, boolean>; // e.g., { 'KB': true, 'AI_CLEANUP': false }
+}
+
+export interface AuthUser extends UserProfile {
+  // Runtime session data
 }
 
 export interface StoryboardState {
@@ -104,4 +127,5 @@ export interface StoryboardState {
   projectOrder: string[];
   activeProjectId: string;
   ignoredCleanupHashes: string[]; 
+  users: Record<string, UserProfile>; // Global user directory
 }

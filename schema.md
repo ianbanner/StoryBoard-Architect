@@ -19,8 +19,19 @@ The root container for a full narrative world.
 | `beatOrder` | `string[]` | Ordered IDs for the top-level horizontal beat ribbon. |
 | `characters` | `Record<string, Character>` | The Bible/Registry for the project's cast. |
 | `locations` | `Record<string, Location>` | The Atlas/Registry for the project's settings. |
+| `knowledgeBase` | `Record<string, KBArticle>` | **(NEW)** Repository of methodology advice keyed by beat template titles. |
 
-### 2. StoryCard
+### 2. KBArticle
+Instructional data provided by the "Writing Mentor" (Knowledge Base) to guide the author through specific structural requirements.
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `id` | `string` | Unique identifier. |
+| `title` | `string` | The Beat template name (e.g., "Opening Image", "Midpoint"). |
+| `content` | `string` | The instructional advice or methodology details. |
+| `lastUpdated` | `number` | Unix timestamp of the last edit. |
+
+### 3. StoryCard
 The fundamental unit of narrative. Cards exist in a nested hierarchy (Beats > Scenes > Chapters).
 
 | Property | Type | Description |
@@ -31,22 +42,21 @@ The fundamental unit of narrative. Cards exist in a nested hierarchy (Beats > Sc
 | `description` | `string` | Summary of what happens. |
 | `tags` | `Tag[]` | Relational links to Characters or Locations in the Bible/Atlas. |
 | `children` | `string[]` | Ordered list of IDs for the next level down. |
-| `parentId` | `string` | Reference to parent for upward traversal. |
+| `parentId` | `string` | Reference to parent for upward traversal and KB inheritance. |
 
 ---
 
-## Hierarchical Structure (Story Flow)
+## Hierarchical Structure & Inheritance
 
 The application follows a strictly enforced top-down flow:
 
-1.  **Beats (Level 1)**: The 16-step "Save the Cat" backbone.
-2.  **Scenes (Level 2)**: Children of Beats; group multiple Chapters.
-3.  **Chapters (Level 3)**: Granular action units; leaf nodes (terminal units).
+1.  **Beats (Level 1)**: The 16-step "Save the Cat" backbone. These cards directly correspond to keys in the `knowledgeBase`.
+2.  **Scenes (Level 2)**: Children of Beats. They inherit methodology context from their parent Beat.
+3.  **Chapters (Level 3)**: Granular action units. They inherit methodology context from their grandparent Beat.
 
 **Linking Logic**:
-- Characters are linked via `tags` or specific `conflictSubject` fields.
-- Locations are linked via `primaryLocationId`.
-- Connections are project-scoped; a character in Project A cannot appear in Project B.
+- **KB Inheritance**: Scenes and Chapters use recursive parent lookup to find the ancestor Beat and display the relevant `KBArticle`.
+- **Relational Assets**: Characters and Locations are linked via IDs to ensure data integrity across the workspace.
 
 ---
 

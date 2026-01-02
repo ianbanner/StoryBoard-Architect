@@ -1,10 +1,13 @@
 
 import React from 'react';
 
-export const SidebarItem = ({ icon, label, active, onClick }: any) => (
-  <button onClick={onClick} className={`flex items-center gap-4 p-3.5 rounded-2xl transition-all ${active ? 'bg-amber-500/10 text-amber-500' : 'hover:bg-slate-800 text-slate-400'}`}>
+export const SidebarItem = ({ icon, label, active, onClick, isSubmenu }: any) => (
+  <button 
+    onClick={onClick} 
+    className={`flex items-center gap-4 rounded-2xl transition-all ${isSubmenu ? 'p-2 text-base' : 'p-3.5 text-lg'} ${active ? 'bg-amber-500/10 text-amber-500' : 'hover:bg-slate-800 text-slate-400'}`}
+  >
     <div className="shrink-0">{icon}</div>
-    <span className="font-bold text-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">{label}</span>
+    <span className={`font-bold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap overflow-hidden`}>{label}</span>
   </button>
 );
 
