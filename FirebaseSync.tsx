@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { initializeApp, getApp, getApps } from 'firebase/app';
-import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, orderBy, limit, initializeFirestore } from 'firebase/firestore';
+import { db } from './App';
+import { doc, setDoc, getDoc, collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { 
   Cloud, UploadCloud, DownloadCloud, Database, RefreshCw, Terminal, Eye, 
   CheckCircle, AlertTriangle, FileText, Users, MapPin, Layers, Layout, 
@@ -14,21 +14,10 @@ interface Props {
   onUpdateState: (newState: StoryboardState) => void;
 }
 
-const DEFAULT_CONFIG = {
-  apiKey: "AIzaSyA8_Dx6M0U-OE5WChRnZgia0fRiHGp0e0I",
-  authDomain: "storyboard-architect.firebaseapp.com",
-  projectId: "storyboard-architect",
-  storageBucket: "storyboard-architect.firebasestorage.app",
-  messagingSenderId: "688524050076",
-  appId: "1:688524050076:web:d9d4a0d6f4f2219ccab759"
-};
-
 const FirebaseSync: React.FC<Props> = ({ state, onUpdateState }) => {
-  const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [isInitialized, setIsInitialized] = useState(false);
   const [logs, setLogs] = useState<{ time: string; msg: string; type?: 'info' | 'error' | 'success' | 'warn' }[]>([]);
   const [loading, setLoading] = useState<string | null>(null);
-  const [cloudSummary, setCloudSummary] = useState<any>(null);
   const [fullCloudState, setFullCloudState] = useState<StoryboardState | null>(null);
   const [versionHistory, setVersionHistory] = useState<any[]>([]);
   const [versionLabel, setVersionLabel] = useState("Manual Snapshot");
@@ -40,24 +29,15 @@ const FirebaseSync: React.FC<Props> = ({ state, onUpdateState }) => {
     setLogs(prev => [...prev, { time, msg, type }]);
   };
 
-  const getSafeFirestore = () => {
-    const app = getApps().length === 0 ? initializeApp(config) : getApp();
-    try {
-      return initializeFirestore(app, { experimentalForceLongPolling: true, useFetchStreams: false });
-    } catch (e) {
-      return getFirestore(app);
-    }
-  };
-
   const drift = useMemo(() => {
-    if (!fullCloudState) return null;
+    if (!fullCloudState || !state.activeProjectId) return null;
     const localProj = state.projects[state.activeProjectId];
     const cloudProj = fullCloudState.projects[fullCloudState.activeProjectId];
     if (!localProj || !cloudProj) return null;
     return {
-      cards: Object.keys(localProj.cards).length - Object.keys(cloudProj.cards).length,
-      chars: Object.keys(localProj.characters).length - Object.keys(cloudProj.characters).length,
-      locs: Object.keys(localProj.locations).length - Object.keys(cloudProj.locations).length,
+      cards: Object.keys(localProj.cards || {}).length - Object.keys(cloudProj.cards || {}).length,
+      chars: Object.keys(localProj.characters || {}).length - Object.keys(cloudProj.characters || {}).length,
+      locs: Object.keys(localProj.locations || {}).length - Object.keys(cloudProj.locations || {}).length,
       isDrifting: JSON.stringify(localProj) !== JSON.stringify(cloudProj)
     };
   }, [state, fullCloudState]);
@@ -68,7 +48,6 @@ const FirebaseSync: React.FC<Props> = ({ state, onUpdateState }) => {
     try {
       setLoading('connecting');
       addLog(`Connecting to Vault...`);
-      const db = getSafeFirestore();
       
       // Fetch Latest Master
       const masterSnap = await getDoc(doc(db, "data", "storyboard_state"));
@@ -96,7 +75,6 @@ const FirebaseSync: React.FC<Props> = ({ state, onUpdateState }) => {
     if (!isInitialized) return;
     try {
       setLoading('pushing');
-      const db = getSafeFirestore();
       const timestamp = Date.now();
       const branchId = `branch_${timestamp}`;
 
@@ -107,7 +85,7 @@ const FirebaseSync: React.FC<Props> = ({ state, onUpdateState }) => {
         ...state,
         branchName: versionLabel,
         timestamp: timestamp,
-        activeProjectName: state.projects[state.activeProjectId].name
+        activeProjectName: state.projects[state.activeProjectId]?.name || "Unknown"
       });
 
       // 2. Also update the Master document (The current "Live" version)
@@ -162,7 +140,7 @@ const FirebaseSync: React.FC<Props> = ({ state, onUpdateState }) => {
               <button 
                 onClick={handleBranchSave}
                 disabled={loading === 'pushing'}
-                className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all flex items-center justify-center gap-3"
+                className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all flex items-center justify-center gap-3"
               >
                 {loading === 'pushing' ? <RefreshCw className="animate-spin" /> : <GitBranch size={18} />}
                 Save Snapshot to Cloud Vault

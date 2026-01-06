@@ -1,21 +1,39 @@
 
 export enum CardType {
-  BEAT = 'BEAT',
-  SCENE = 'SCENE',
-  CHAPTER = 'CHAPTER'
+  BEAT = 'BEAT', // Legacy/Migration only: Beats are now attributes, not containers.
+  SCENE = 'SCENE', // Level 1 Narrative Unit
+  CHAPTER = 'CHAPTER' // Level 2 Narrative Unit (Child of Scene)
+}
+
+export enum BeatType {
+  OPENING_IMAGE = "1. Opening Image",
+  THEME_STATED = "2. Theme Stated",
+  SET_UP = "3. Set-Up",
+  CATALYST = "4. Catalyst",
+  DEBATE = "5. Debate",
+  BREAK_INTO_TWO = "6. Break into Two",
+  B_STORY = "7. B Story",
+  FUN_AND_GAMES = "8. Fun and Games",
+  MIDPOINT = "9. Midpoint",
+  BAD_GUYS_CLOSE_IN = "10. Bad Guys Close In",
+  ALL_IS_LOST = "11. All Is Lost",
+  DARK_NIGHT_OF_THE_SOUL = "12. Dark Night of the Soul",
+  BREAK_INTO_THREE = "13. Break into Three",
+  FINALE = "14. Finale",
+  FINAL_IMAGE = "15. Final Image"
 }
 
 export interface Tag {
   id: string;
   label: string;
-  category: 'character' | 'location' | 'theme';
+  category: 'character' | 'location' | 'theme' | 'setuppayoff';
 }
 
 export interface KBArticle {
   id: string;
   title: string;
   content: string;
-  aiScript?: string; // Instructions for the AI Coach
+  aiScript?: string;
   lastUpdated: number;
 }
 
@@ -26,25 +44,36 @@ export interface AIScript {
   isDefault?: boolean;
 }
 
+export interface SetupPayoff {
+  id: string;
+  title: string;
+  category: 'FLAW' | 'THEME' | 'PROBLEM' | 'OBJECT' | 'SKILL' | 'OTHER';
+  setupDescription: string;
+  bumpDescription: string; // The Act 2 reminder/setback
+  payoffDescription: string;
+  notes?: string;
+}
+
 export interface StoryCard {
   id: string;
   type: CardType;
-  title: string; // Architectural title (e.g., "The Midpoint Brawl")
-  chapterTitle?: string; // Reader-facing title (e.g., "Chapter 12: The Fall")
+  title: string;
+  chapterTitle?: string;
   description: string;
-  draftContent?: string; // The actual written prose/words
+  draftContent?: string;
   notes?: string;
   tags: Tag[];
-  children: string[];
+  children: string[]; // Hierarchy: Scene -> Chapter
   parentId?: string;
-  // STC specific metadata
+  associatedBeats?: BeatType[]; // Attribute: Beats anchor units to the structural roadmap
   location?: string;
   primaryLocationId?: string;
+  associatedSetupPayoffIds?: string[]; // Links to Setups & Payoffs
   basicAction?: string;
-  conflict?: string; // Who is fighting whom? ($><$)
+  conflict?: string;
   conflictSubjectAId?: string;
   conflictSubjectBId?: string;
-  emotionalValue?: 'POSITIVE' | 'NEGATIVE'; // The sign flip (+/-)
+  emotionalValue?: 'POSITIVE' | 'NEGATIVE';
 }
 
 export interface Location {
@@ -67,7 +96,6 @@ export interface Character {
   accent?: string;
   isVillain?: boolean;
   signaturePhrases?: string[];
-  // STC specific fields
   sixThingsToFix: string[];
   primalGoal: string;
   saveTheCatMoment: string;
@@ -95,8 +123,8 @@ export interface STCPlanning {
     requirementB: string; 
     requirementC: string; 
   };
-  groupTransformation: HeroTransformation; // The shared journey of the gang
-  heroTransformations: Record<string, HeroTransformation>; // Mapping characterId -> Individual details
+  groupTransformation: HeroTransformation;
+  heroTransformations: Record<string, HeroTransformation>;
 }
 
 export interface ProjectInfo {
@@ -110,11 +138,13 @@ export interface Project {
   lastModified?: number;
   versionLabel?: string;
   cards: Record<string, StoryCard>;
-  beatOrder: string[];
+  sceneOrder: string[]; // Level 1 flow
   characters: Record<string, Character>;
   characterOrder: string[];
   locations: Record<string, Location>;
   locationOrder: string[];
+  setupPayoffs: Record<string, SetupPayoff>;
+  setupPayoffOrder: string[];
   planning: STCPlanning;
   knowledgeBase: Record<string, KBArticle>;
   aiScripts: Record<string, AIScript>;
@@ -125,17 +155,15 @@ export interface UserProfile {
   email: string;
   password?: string;
   isSuperuser: boolean;
-  permissions: Record<string, boolean>; // e.g., { 'KB': true, 'AI_CLEANUP': false }
+  permissions: Record<string, boolean>;
 }
 
-export interface AuthUser extends UserProfile {
-  // Runtime session data
-}
+export interface AuthUser extends UserProfile {}
 
 export interface StoryboardState {
   projects: Record<string, Project>;
   projectOrder: string[];
   activeProjectId: string;
   ignoredCleanupHashes: string[]; 
-  users: Record<string, UserProfile>; // Global user directory
+  users: Record<string, UserProfile>;
 }

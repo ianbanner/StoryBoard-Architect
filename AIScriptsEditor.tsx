@@ -1,18 +1,30 @@
 
-import React, { useState } from 'react';
-import { Terminal, Save, Trash2, Plus, Sparkles, AlertCircle, ShieldCheck, ChevronRight, Edit3 } from 'lucide-react';
-import { AIScript } from './types';
+import React, { useState, useRef, useEffect } from 'react';
+import { 
+  Terminal, Save, Trash2, Plus, Sparkles, AlertCircle, 
+  ShieldCheck, ChevronRight, Edit3, Play, Loader2, X, 
+  Cpu, MessageSquare, Database, FileJson, BrainCircuit
+} from 'lucide-react';
+import { GoogleGenAI } from "@google/genai";
+import { AIScript, Project, Character, Location, StoryCard } from './types';
 import { TabButton } from './CommonUI';
 
 interface Props {
+  project: Project;
   scripts: Record<string, AIScript>;
   onUpdateScripts: (updated: Record<string, AIScript>) => void;
 }
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-const AIScriptsEditor: React.FC<Props> = ({ scripts = {}, onUpdateScripts }) => {
+const AIScriptsEditor: React.FC<Props> = ({ project, scripts = {}, onUpdateScripts }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
+  
+  // Execution State
+  const [executingId, setExecutingId] = useState<string | null>(null);
+  const [executionResult, setExecutionResult] = useState<string | null>(null);
+  const [isResultModalOpen, setIsResultModalOpen] = useState(false);
+  const resultEndRef = useRef<HTMLDivElement>(null);
 
   const handleAdd = () => {
     const id = generateId();
@@ -44,7 +56,59 @@ const AIScriptsEditor: React.FC<Props> = ({ scripts = {}, onUpdateScripts }) => 
     if (editingId === id) setEditingId(null);
   };
 
-  // Fixed: Cast Object.values to AIScript[] to resolve property access errors on unknown
+  const handleRunScript = async (script: AIScript) => {
+    setExecutingId(script.id);
+    setExecutionResult(null);
+    setIsResultModalOpen(true);
+
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      
+      // Package project context for the AI
+      const context = {
+        projectName: project.name,
+        planning: project.planning,
+        characters: Object.values(project.characters || {}).map(c => ({
+            name: c.name,
+            role: c.oneWord,
+            bio: c.oneSentence,
+            goals: c.primalGoal
+        })),
+        locations: Object.values(project.locations || {}).map(l => ({
+            name: l.name,
+            description: l.description
+        })),
+        narrativeUnits: Object.values(project.cards || {}).map(c => ({
+            title: c.title,
+            beats: c.associatedBeats || [],
+            description: c.description
+        }))
+      };
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `Execute your assigned Logic Script on the following project context. Provide a high-fidelity narrative audit or execution as instructed. 
+        
+        PROJECT DATA:
+        ${JSON.stringify(context, null, 2)}`,
+        config: {
+          systemInstruction: script.content,
+          temperature: 0.7,
+        }
+      });
+
+      setExecutionResult(response.text || "Execution completed with no output.");
+    } catch (err: any) {
+      setExecutionResult(`CRITICAL EXECUTION FAILURE: ${err.message}`);
+    } finally {
+      setExecutingId(null);
+    }
+  };
+
+  useEffect(() => {
+    if (resultEndRef.current) resultEndRef.current.scrollIntoView({ behavior: 'smooth' });
+  }, [executionResult]);
+
   const scriptList = Object.values(scripts) as AIScript[];
 
   return (
@@ -58,15 +122,15 @@ const AIScriptsEditor: React.FC<Props> = ({ scripts = {}, onUpdateScripts }) => 
               <Terminal size={40} />
             </div>
             <div>
-              <h2 className="text-4xl font-black text-slate-900 tracking-tight">AI Scripts</h2>
-              <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.3em] mt-1 ml-1">Instructional Logic & Personas</p>
+              <h2 className="text-4xl font-black text-slate-900 tracking-tight">AI Logic Hub</h2>
+              <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.3em] mt-1 ml-1">Behavioral Personas & Automated Audits</p>
             </div>
           </div>
           <button 
             onClick={handleAdd}
             className="flex items-center gap-3 bg-violet-600 text-white px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-violet-700 transition-all shadow-xl shadow-violet-100"
           >
-            <Plus size={18} /> Add Logic Unit
+            <Plus size={18} /> New Logic Unit
           </button>
         </div>
 
@@ -74,14 +138,13 @@ const AIScriptsEditor: React.FC<Props> = ({ scripts = {}, onUpdateScripts }) => 
            {scriptList.map(s => (
              <div 
                key={s.id} 
-               onClick={() => setEditingId(s.id)}
-               className={`p-8 border-2 rounded-[32px] flex items-center justify-between group transition-all cursor-pointer ${editingId === s.id ? 'bg-violet-50 border-violet-200' : 'bg-white border-slate-100 hover:border-violet-100'}`}
+               className={`p-8 border-2 rounded-[32px] flex items-center justify-between group transition-all relative overflow-hidden ${editingId === s.id ? 'bg-violet-50 border-violet-200' : 'bg-white border-slate-100 hover:border-violet-100'}`}
              >
-               <div className="flex items-center gap-6">
-                 <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${s.isDefault ? 'bg-violet-600 text-white shadow-lg shadow-violet-200' : 'bg-slate-100 text-slate-400'}`}>
+               <div className="flex items-center gap-6 flex-1 cursor-pointer" onClick={() => setEditingId(s.id)}>
+                 <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${s.isDefault ? 'bg-violet-600 text-white shadow-lg shadow-violet-200' : 'bg-slate-100 text-slate-400'}`}>
                    {s.isDefault ? <ShieldCheck size={24} /> : <Terminal size={24} />}
                  </div>
-                 <div>
+                 <div className="min-w-0 flex-1">
                    <div className="flex items-center gap-3">
                      <span className="text-xl font-black text-slate-800">{s.title}</span>
                      {s.isDefault && <span className="text-[8px] font-black uppercase bg-violet-600 text-white px-2 py-0.5 rounded tracking-widest">MASTER</span>}
@@ -89,17 +152,28 @@ const AIScriptsEditor: React.FC<Props> = ({ scripts = {}, onUpdateScripts }) => 
                    <p className="text-xs text-slate-400 font-desc italic mt-1 line-clamp-1">{s.content}</p>
                  </div>
                </div>
-               <div className="flex items-center gap-4">
-                  <button onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }} className={`p-4 rounded-2xl transition-all ${s.isDefault ? 'text-slate-200 cursor-not-allowed' : 'text-slate-200 hover:text-rose-500 hover:bg-rose-50'}`}>
+               
+               <div className="flex items-center gap-4 shrink-0 pl-8 ml-auto border-l border-slate-50">
+                  <button 
+                    onClick={() => handleRunScript(s)}
+                    className="p-4 bg-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-100 hover:bg-emerald-500 hover:shadow-emerald-100 transition-all hover:scale-110 active:scale-95"
+                    title="Execute Logic"
+                  >
+                    <Play size={20} fill="currentColor" />
+                  </button>
+                  <button 
+                    onClick={() => handleDelete(s.id)} 
+                    className={`p-4 rounded-2xl transition-all ${s.isDefault ? 'text-slate-200 cursor-not-allowed' : 'text-slate-200 hover:text-rose-500 hover:bg-rose-50'}`}
+                  >
                     <Trash2 size={20} />
                   </button>
-                  <ChevronRight size={20} className="text-slate-200 group-hover:translate-x-1 transition-transform" />
                </div>
              </div>
            ))}
         </div>
       </div>
 
+      {/* Editor Sidebar */}
       {editingId && scripts[editingId] && (
         <div className="fixed inset-y-0 right-0 w-[580px] bg-white shadow-2xl z-[1000] border-l border-slate-200 flex flex-col animate-in slide-in-from-right duration-300">
           <div className="p-8 border-b flex items-center justify-between bg-slate-50/50">
@@ -144,18 +218,59 @@ const AIScriptsEditor: React.FC<Props> = ({ scripts = {}, onUpdateScripts }) => 
                  placeholder="Enter system instructions..."
                />
             </div>
+          </div>
+        </div>
+      )}
 
-            {scripts[editingId].isDefault && (
-               <div className="bg-amber-50 border border-amber-100 p-8 rounded-3xl flex gap-6 items-start">
-                 <AlertCircle size={24} className="text-amber-600 shrink-0" />
-                 <div className="space-y-1">
-                   <h4 className="text-sm font-black text-amber-900 uppercase tracking-tight">System Identity</h4>
-                   <p className="text-xs text-amber-700 leading-relaxed font-medium">
-                     This is the Master Persona for the project. Every AI interaction within this project's context will be prefixed or grounded by this logic unit. Use it to define the global voice, tone, and audience expectations.
-                   </p>
-                 </div>
+      {/* Result Modal */}
+      {isResultModalOpen && (
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-8">
+          <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => !executingId && setIsResultModalOpen(false)}></div>
+          <div className="relative bg-[#0a0f1e] w-full max-w-4xl h-[75vh] rounded-[40px] shadow-2xl flex flex-col overflow-hidden border border-slate-800 animate-in zoom-in-95 duration-300">
+            
+            <header className="px-10 py-8 border-b border-slate-800 bg-slate-900/50 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-5">
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg ${executingId ? 'bg-indigo-600 animate-pulse' : 'bg-emerald-600'}`}>
+                   {executingId ? <Cpu className="animate-spin" size={28} /> : <BrainCircuit size={28} />}
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black text-white tracking-tight uppercase">Logic <span className="text-indigo-400">Result</span></h3>
+                  <p className="text-slate-500 font-bold uppercase text-[9px] tracking-[0.3em]">Execution on {project.name}</p>
+                </div>
+              </div>
+              <button onClick={() => setIsResultModalOpen(false)} disabled={!!executingId} className="p-3 text-slate-500 hover:text-white hover:bg-slate-800 rounded-2xl transition-all disabled:opacity-30">
+                <X size={24} />
+              </button>
+            </header>
+
+            <div className="flex-1 overflow-y-auto p-12 font-desc text-lg custom-scrollbar bg-black/40 text-slate-200">
+              {executingId ? (
+                <div className="h-full flex flex-col items-center justify-center space-y-6 opacity-60">
+                   <Loader2 className="animate-spin text-indigo-500" size={48} />
+                   <p className="font-desc italic text-slate-400 text-xl">The AI is processing your narrative logic...</p>
+                </div>
+              ) : (
+                <div className="whitespace-pre-wrap leading-relaxed animate-in fade-in duration-500">
+                  {executionResult}
+                </div>
+              )}
+              <div ref={resultEndRef} />
+            </div>
+
+            <footer className="px-10 py-8 border-t border-slate-800 bg-slate-900/50 flex items-center justify-between shrink-0">
+               <div className="flex items-center gap-3">
+                 <div className={`w-2 h-2 rounded-full ${executingId ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`}></div>
+                 <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">
+                   {executingId ? 'Computation in progress' : 'Analysis Finalized'}
+                 </span>
                </div>
-            )}
+               <button 
+                onClick={() => setIsResultModalOpen(false)}
+                className="px-10 py-4 bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-white hover:text-slate-900 transition-all shadow-xl"
+               >
+                 Close Analysis
+               </button>
+            </footer>
           </div>
         </div>
       )}

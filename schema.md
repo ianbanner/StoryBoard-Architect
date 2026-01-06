@@ -5,7 +5,7 @@ This document outlines the architectural data structure for the Storyboard appli
 
 ## Core Hierarchy
 
-The data structure is strictly scoped to a **Project** at the top level. This ensures that switching projects completely context-swaps all narrative assets (Planning, Beats, Characters, Locations, and their relational links).
+The data structure is strictly scoped to a **Project** at the top level. Narrative units follow a two-tier tree structure with a metadata-driven anchoring system for structural beats.
 
 ### 1. Project
 The root container for a full narrative world.
@@ -15,14 +15,14 @@ The root container for a full narrative world.
 | `id` | `string` | Unique slug for the project. |
 | `name` | `string` | Display name of the story. |
 | `planning` | `STCPlanning` | Metadata for loglines, hero goals, and STC genre details. |
-| `cards` | `Record<string, StoryCard>` | Normalized map of all Beats, Scenes, and Chapters. |
-| `beatOrder` | `string[]` | Ordered IDs for the top-level horizontal beat ribbon. |
+| `cards` | `Record<string, StoryCard>` | Normalized map of all Scenes and Chapters. |
+| `sceneOrder` | `string[]` | Ordered IDs for Level 1 narrative units (Scenes). |
 | `characters` | `Record<string, Character>` | The Bible/Registry for the project's cast. |
 | `locations` | `Record<string, Location>` | The Atlas/Registry for the project's settings. |
-| `knowledgeBase` | `Record<string, KBArticle>` | **(NEW)** Repository of methodology advice keyed by beat template titles. |
+| `knowledgeBase` | `Record<string, KBArticle>` | Repository of methodology advice keyed by structural beat titles. |
 
 ### 2. KBArticle
-Instructional data provided by the "Writing Mentor" (Knowledge Base) to guide the author through specific structural requirements.
+Instructional data provided by the "Writing Mentor" to guide the author through specific structural requirements of a beat.
 
 | Property | Type | Description |
 | :--- | :--- | :--- |
@@ -32,31 +32,35 @@ Instructional data provided by the "Writing Mentor" (Knowledge Base) to guide th
 | `lastUpdated` | `number` | Unix timestamp of the last edit. |
 
 ### 3. StoryCard
-The fundamental unit of narrative. Cards exist in a nested hierarchy (Beats > Scenes > Chapters).
+The fundamental unit of narrative. Cards exist in a nested hierarchy with assigned structural metadata.
 
 | Property | Type | Description |
 | :--- | :--- | :--- |
 | `id` | `string` | Unique identifier. |
-| `type` | `CardType` | Enum: `BEAT`, `SCENE`, or `CHAPTER`. |
-| `title` | `string` | Headline of the unit. |
-| `description` | `string` | Summary of what happens. |
-| `tags` | `Tag[]` | Relational links to Characters or Locations in the Bible/Atlas. |
-| `children` | `string[]` | Ordered list of IDs for the next level down. |
-| `parentId` | `string` | Reference to parent for upward traversal and KB inheritance. |
+| `type` | `CardType` | Enum: `SCENE` (L1) or `CHAPTER` (L2). |
+| `title` | `string` | Internal name of the unit. |
+| `associatedBeats` | `BeatType[]` | **(ATTRIBUTE)** Links to "Save the Cat" structural beats for KB inheritance. |
+| `description` | `string` | Narrative blueprint or summary. |
+| `draftContent` | `string` | Actual manuscript text. |
+| `children` | `string[]` | Ordered list of child IDs (Scenes have Chapter children). |
+| `parentId` | `string` | Reference to parent for upward traversal. |
 
 ---
 
-## Hierarchical Structure & Inheritance
+## Hierarchical Structure & Assignment
 
-The application follows a strictly enforced top-down flow:
+The application uses a **Structural Anchor** pattern rather than a structural container pattern:
 
-1.  **Beats (Level 1)**: The 16-step "Save the Cat" backbone. These cards directly correspond to keys in the `knowledgeBase`.
-2.  **Scenes (Level 2)**: Children of Beats. They inherit methodology context from their parent Beat.
-3.  **Chapters (Level 3)**: Granular action units. They inherit methodology context from their grandparent Beat.
+1.  **Scenes (Level 1)**: The primary narrative sequences. These are the main "columns" of the storyboard flow.
+2.  **Chapters (Level 2)**: Children of Scenes. These represent the granular action units that compose a scene.
+3.  **Beats (Metadata Attributes)**: 
+    *   Beats are not parents; they are **attributes** assigned to either a Scene or a Chapter.
+    *   **KB Inheritance**: When a Scene or Chapter is assigned a Beat (e.g., "Midpoint"), it dynamically inherits the relevant `KBArticle` for that beat type.
+    *   Multiple units can technically target the same beat, or one unit can span multiple beats.
 
 **Linking Logic**:
-- **KB Inheritance**: Scenes and Chapters use recursive parent lookup to find the ancestor Beat and display the relevant `KBArticle`.
-- **Relational Assets**: Characters and Locations are linked via IDs to ensure data integrity across the workspace.
+- **Asset Association**: Characters and Locations are linked via IDs to ensure data integrity.
+- **Project Scope**: All assets are relative to the project root, allowing for safe multi-story management.
 
 ---
 
@@ -68,6 +72,7 @@ The `StoryboardState` tracks all projects and the currently active ID.
 {
   projects: Record<string, Project>,
   projectOrder: string[],
-  activeProjectId: string
+  activeProjectId: string,
+  users: Record<string, UserProfile>
 }
 ```

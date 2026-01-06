@@ -1,8 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
-import { BookOpen, Search, Edit3, Save, ChevronRight, Clock, Sparkles, BrainCircuit } from 'lucide-react';
+import { BookOpen, Search, Edit3, Save, ChevronRight, Clock, Sparkles, BrainCircuit, Layout } from 'lucide-react';
 import { KBArticle } from './types';
-import { TabButton } from './CommonUI';
 
 interface Props {
   knowledgeBase: Record<string, KBArticle>;
@@ -10,6 +9,10 @@ interface Props {
 }
 
 const STC_BEAT_ORDER = [
+  "Beats overview",
+  "setup and pay off overview",
+  "Theme and Meaning",
+  "The Finale Blueprint",
   "1. Opening Image", 
   "2. Theme Stated", 
   "3. Set-Up", 
@@ -27,6 +30,16 @@ const STC_BEAT_ORDER = [
   "15. Final Image"
 ];
 
+// Local TabButton implementation to support the amber theme
+const KBTabButton = ({ active, label, onClick }: any) => (
+  <button 
+    onClick={onClick} 
+    className={`flex-1 py-6 text-lg font-black uppercase tracking-widest transition-all border-b-2 ${active ? 'border-amber-500 text-amber-600 bg-amber-50/10' : 'border-transparent text-slate-400 hover:bg-slate-50'}`}
+  >
+    {label}
+  </button>
+);
+
 const KnowledgeBaseEditor: React.FC<Props> = ({ knowledgeBase = {}, onUpdateKB }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -34,12 +47,10 @@ const KnowledgeBaseEditor: React.FC<Props> = ({ knowledgeBase = {}, onUpdateKB }
   const safeKB = knowledgeBase || {};
   
   const sortedArticles = useMemo(() => {
-    // Fixed: Cast Object.values to KBArticle[] to fix property access errors on unknown
     const articles = Object.values(safeKB) as KBArticle[];
     return articles.sort((a, b) => {
       const indexA = STC_BEAT_ORDER.indexOf(a.title);
       const indexB = STC_BEAT_ORDER.indexOf(b.title);
-      // If found in sequence, sort by sequence, otherwise alphabetical
       if (indexA !== -1 && indexB !== -1) return indexA - indexB;
       if (indexA !== -1) return -1;
       if (indexB !== -1) return 1;
@@ -50,12 +61,10 @@ const KnowledgeBaseEditor: React.FC<Props> = ({ knowledgeBase = {}, onUpdateKB }
   const filtered = sortedArticles.filter(a => a.title.toLowerCase().includes(search.toLowerCase()));
 
   const handleUpdate = (id: string, updates: Partial<KBArticle>) => {
-    // Fixed: Cast Object.entries to correctly access properties of KBArticle values
     const entry = (Object.entries(safeKB) as [string, KBArticle][]).find(([_, article]) => article.id === id);
     if (!entry) return;
     const [key, article] = entry;
     
-    // Fixed: spread safeKB as Record to satisfy object spread requirements
     onUpdateKB({
       ...safeKB,
       [key]: { ...article, ...updates, lastUpdated: Date.now() }
@@ -66,8 +75,8 @@ const KnowledgeBaseEditor: React.FC<Props> = ({ knowledgeBase = {}, onUpdateKB }
     <div className="max-w-6xl mx-auto space-y-12">
       <div className="flex items-center justify-between bg-white border-2 border-slate-100 rounded-[32px] p-8 shadow-sm">
         <div className="flex items-center gap-6">
-          <div className="w-16 h-16 bg-indigo-600 rounded-[22px] flex items-center justify-center text-white shadow-xl shadow-indigo-100">
-            < BookOpen size={32} />
+          <div className="w-16 h-16 bg-amber-500 rounded-[22px] flex items-center justify-center text-white shadow-xl shadow-amber-100">
+            <BookOpen size={32} />
           </div>
           <div>
             <h2 className="text-3xl font-black text-slate-900 tracking-tight">Knowledge Base for Save The Cat</h2>
@@ -81,7 +90,7 @@ const KnowledgeBaseEditor: React.FC<Props> = ({ knowledgeBase = {}, onUpdateKB }
             placeholder="Search methodology..." 
             value={search} 
             onChange={e => setSearch(e.target.value)} 
-            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl pl-12 pr-6 py-3.5 text-sm font-bold outline-none focus:border-indigo-500 transition-all"
+            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl pl-12 pr-6 py-3.5 text-sm font-bold outline-none focus:border-amber-500 transition-all"
           />
         </div>
       </div>
@@ -97,7 +106,6 @@ const KnowledgeBaseEditor: React.FC<Props> = ({ knowledgeBase = {}, onUpdateKB }
             <KBArticleCard 
               key={article.id} 
               article={article} 
-              orderIndex={STC_BEAT_ORDER.indexOf(article.title) + 1}
               onEdit={() => setEditingId(article.id)} 
             />
           ))}
@@ -115,38 +123,45 @@ const KnowledgeBaseEditor: React.FC<Props> = ({ knowledgeBase = {}, onUpdateKB }
   );
 };
 
-// Fixed: Added key to type definition to satisfy strict TS check during mapping
-const KBArticleCard = ({ article, onEdit, orderIndex }: { article: KBArticle, onEdit: () => void, orderIndex: number; key?: React.Key }) => (
-  <div 
-    onClick={onEdit}
-    className="bg-white border-2 border-slate-100 rounded-[32px] p-8 flex flex-col group transition-all relative hover:shadow-2xl hover:border-indigo-100 cursor-pointer h-[320px]"
-  >
-    <div className="flex items-center justify-between mb-6">
-      <div className="flex items-center gap-3">
-        <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-indigo-500 group-hover:bg-indigo-600 group-hover:text-white transition-all">
-          <Edit3 size={20} />
+const KBArticleCard = ({ article, onEdit }: { article: KBArticle, onEdit: () => void }) => {
+  const orderIndex = STC_BEAT_ORDER.indexOf(article.title);
+  const isMeta = orderIndex < 4; // First 4 items are Meta-Articles
+  const displayIndex = isMeta ? null : orderIndex - 3; // Subtracting the 4 meta items
+
+  return (
+    <div 
+      onClick={onEdit}
+      className={`bg-white border-2 border-slate-100 rounded-[32px] p-8 flex flex-col group transition-all relative hover:shadow-2xl hover:border-amber-100 cursor-pointer h-[320px] ${isMeta ? 'bg-amber-50/5' : ''}`}
+    >
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-amber-500 group-hover:bg-amber-500 group-hover:text-white transition-all">
+            {isMeta ? <Layout size={20} /> : <Edit3 size={20} />}
+          </div>
+          {displayIndex && (
+            <span className="text-xl font-black text-slate-200 group-hover:text-amber-200 transition-colors">
+              {displayIndex.toString().padStart(2, '0')}
+            </span>
+          )}
+          {isMeta && (
+            <span className="text-[8px] font-black uppercase text-amber-500 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 tracking-[0.2em]">Architecture</span>
+          )}
         </div>
-        {orderIndex > 0 && (
-          <span className="text-xl font-black text-slate-200 group-hover:text-indigo-200 transition-colors">
-            {orderIndex.toString().padStart(2, '0')}
-          </span>
-        )}
+        <div className="flex items-center gap-2 text-slate-300">
+          <Clock size={12} />
+          <span className="text-[9px] font-black uppercase tracking-widest">{new Date(article.lastUpdated).toLocaleDateString()}</span>
+        </div>
       </div>
-      <div className="flex items-center gap-2 text-slate-300">
-        <Clock size={12} />
-        <span className="text-[9px] font-black uppercase tracking-widest">{new Date(article.lastUpdated).toLocaleDateString()}</span>
+      <h3 className={`text-xl font-black mb-6 ${isMeta ? 'text-slate-900' : 'text-amber-500'}`}>{article.title}</h3>
+      <p className="text-xs text-slate-500 font-desc italic leading-relaxed line-clamp-5">{article.content}</p>
+      
+      <div className="mt-auto pt-6 border-t border-slate-50 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">
+         <span className="text-[9px] font-black uppercase text-amber-500">View Article Details</span>
+         <ChevronRight size={14} className="text-amber-500 group-hover:translate-x-1 transition-transform" />
       </div>
     </div>
-    <h3 className="text-xl font-black text-slate-900 mb-2">{article.title}</h3>
-    <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-4">Methodology Article</p>
-    <p className="text-xs text-slate-500 font-desc italic leading-relaxed line-clamp-4">{article.content}</p>
-    
-    <div className="mt-auto pt-6 border-t border-slate-50 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">
-       <span className="text-[9px] font-black uppercase text-indigo-400">View Article Details</span>
-       <ChevronRight size={14} className="text-indigo-400 group-hover:translate-x-1 transition-transform" />
-    </div>
-  </div>
-);
+  );
+};
 
 const KBArticleEditor = ({ article, onClose, onUpdate }: { article: KBArticle, onClose: () => void, onUpdate: (u: Partial<KBArticle>) => void }) => {
   const [activeTab, setActiveTab] = useState<'CONTENT' | 'AI_COACH'>('CONTENT');
@@ -163,15 +178,15 @@ const KBArticleEditor = ({ article, onClose, onUpdate }: { article: KBArticle, o
         </div>
         <button 
           onClick={onClose}
-          className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 flex items-center gap-2"
+          className="bg-amber-500 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 flex items-center gap-2 shadow-lg shadow-amber-100"
         >
           <Save size={16} /> Save & Close
         </button>
       </div>
 
       <div className="flex border-b">
-        <TabButton active={activeTab === 'CONTENT'} label="General Notes and Advice" onClick={() => setActiveTab('CONTENT')} />
-        <TabButton active={activeTab === 'AI_COACH'} label="Coach Blueprint" onClick={() => setActiveTab('AI_COACH')} />
+        <KBTabButton active={activeTab === 'CONTENT'} label="General Notes and Advice" onClick={() => setActiveTab('CONTENT')} />
+        <KBTabButton active={activeTab === 'AI_COACH'} label="Coach Blueprint" onClick={() => setActiveTab('AI_COACH')} />
       </div>
 
       <div className="flex-1 overflow-y-auto p-12 custom-scrollbar space-y-12">
@@ -181,21 +196,21 @@ const KBArticleEditor = ({ article, onClose, onUpdate }: { article: KBArticle, o
             <textarea 
               value={article.content} 
               onChange={e => onUpdate({ content: e.target.value })} 
-              className="w-full h-[500px] bg-slate-50 border-none rounded-[32px] p-10 text-xl font-desc italic leading-relaxed focus:ring-4 focus:ring-indigo-50 resize-none" 
+              className="w-full h-[500px] bg-amber-50/10 border-none rounded-[32px] p-10 text-xl font-desc italic leading-relaxed focus:ring-4 focus:ring-amber-50 resize-none shadow-inner" 
               placeholder="Enter Methodology Advice..." 
             />
           </div>
         ) : (
           <div className="space-y-10">
             <div className="space-y-4">
-              <div className="flex items-center gap-3 text-indigo-600 mb-2">
+              <div className="flex items-center gap-3 text-amber-500 mb-2">
                 <BrainCircuit size={20} />
                 <label className="text-sm font-black uppercase tracking-[0.2em]">AI System Persona</label>
               </div>
               <textarea 
                 value={article.aiScript || ''} 
                 onChange={e => onUpdate({ aiScript: e.target.value })} 
-                className="w-full h-[400px] bg-indigo-50/30 border-2 border-indigo-100 rounded-[32px] p-10 text-base font-mono text-indigo-900 leading-relaxed focus:ring-4 focus:ring-indigo-100 resize-none" 
+                className="w-full h-[400px] bg-amber-50/30 border-2 border-amber-100 rounded-[32px] p-10 text-base font-mono text-amber-900 leading-relaxed focus:ring-4 focus:ring-amber-100 resize-none" 
                 placeholder="Example: You are a structural analyst specializing in movie midpoints. Your goal is to tell the user if their scene represents a False Victory or False Defeat and how it raises the stakes." 
               />
             </div>
