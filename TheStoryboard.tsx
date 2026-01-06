@@ -47,6 +47,30 @@ const TheStoryboard: React.FC<Props> = ({
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
   const [kbBeatType, setKbBeatType] = useState<BeatType | null>(null);
   const [writingCardId, setWritingCardId] = useState<string | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll logic: When editor opens, move card to the left-most visible area
+  useEffect(() => {
+    if (editingCardId && scrollContainerRef.current) {
+      // Small delay to ensure panel transition has started and layout is updated
+      setTimeout(() => {
+        const element = document.getElementById(`card-anchor-${editingCardId}`);
+        const container = scrollContainerRef.current;
+        if (element && container) {
+          // We align to 'start' so the card becomes the leftmost item. 
+          // We use a manual scroll calculation to ensure a specific 40px "breathing room" margin.
+          const containerRect = container.getBoundingClientRect();
+          const elementRect = element.getBoundingClientRect();
+          const relativeLeft = elementRect.left - containerRect.left;
+          
+          container.scrollBy({ 
+            left: relativeLeft - 40, 
+            behavior: 'smooth' 
+          });
+        }
+      }, 100);
+    }
+  }, [editingCardId]);
 
   const charactersMap = useMemo(() => 
     characters.reduce((acc, char) => ({ ...acc, [char.id]: char }), {} as Record<string, Character>),
@@ -148,7 +172,7 @@ const TheStoryboard: React.FC<Props> = ({
         </div>
       </aside>
 
-      <div className="flex-1 overflow-auto custom-scrollbar dot-grid relative transition-all duration-500">
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto custom-scrollbar dot-grid relative transition-all duration-500">
         <div className="flex-1 overflow-auto">
           <div className="flex flex-col gap-32 p-32 min-w-max">
             {acts.map((act, actIdx) => (
@@ -389,6 +413,7 @@ const NarrativeCard = ({
 
   return (
     <div 
+      id={`card-anchor-${card.id}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
