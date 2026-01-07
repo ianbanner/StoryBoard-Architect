@@ -1,14 +1,15 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Database, Cloud, RefreshCcw, Download, Upload, Terminal, 
   Info, CheckCircle2, AlertCircle, Search, Wifi, WifiOff, Loader2, 
   Eye, ShieldCheck, CheckSquare, Layers, Users, MapPin, X
 } from 'lucide-react';
-import { db } from './App';
+// Import db from firebase_init
+import { db } from './firebase_init';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { StoryboardState } from './types';
-import { sanitizeForFirestore } from './DataExplorer';
+// Import sanitizeForFirestore from core_utils
+import { sanitizeForFirestore } from './core_utils';
 
 interface Props {
   state: StoryboardState;

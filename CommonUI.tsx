@@ -1,6 +1,8 @@
 
 import React from 'react';
 
+export const generateId = () => Math.random().toString(36).substr(2, 9);
+
 export const SidebarItem = ({ icon, label, active, onClick, isSubmenu }: any) => (
   <button 
     onClick={onClick} 

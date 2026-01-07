@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { db } from './App';
+import { db } from './firebase_init';
+import { sanitizeForFirestore } from './core_utils';
 import { 
   doc, getDoc, 
   setDoc,
@@ -25,23 +26,6 @@ interface SyncLog {
   message: string;
   type: 'INFO' | 'SUCCESS' | 'ERROR' | 'WARN' | 'DEBUG';
 }
-
-/**
- * Recursively removes any keys with 'undefined' values from an object.
- * Firestore throws errors if it encounters 'undefined'.
- */
-export const sanitizeForFirestore = (obj: any): any => {
-  if (Array.isArray(obj)) {
-    return obj.map(sanitizeForFirestore);
-  } else if (obj !== null && typeof obj === 'object') {
-    return Object.fromEntries(
-      Object.entries(obj)
-        .filter(([_, v]) => v !== undefined)
-        .map(([k, v]) => [k, sanitizeForFirestore(v)])
-    );
-  }
-  return obj;
-};
 
 const DataExplorer: React.FC<Props> = ({ localState, onUpdateState }) => {
   const [remoteState, setRemoteState] = useState<StoryboardState | null>(null);

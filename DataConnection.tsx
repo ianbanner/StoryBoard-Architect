@@ -5,7 +5,8 @@ import {
   Info, CheckCircle2, AlertCircle, Search, Wifi, WifiOff, Loader2, 
   Eye, ShieldCheck, CheckSquare, Layers, Users, MapPin 
 } from 'lucide-react';
-import { initializeApp, getApp, getApps } from 'firebase/app';
+// Fix: Use namespace import for firebase/app to resolve "no exported member" errors in some environments
+import * as firebaseApp from 'firebase/app';
 import { getFirestore, doc, getDoc, setDoc, initializeFirestore } from 'firebase/firestore';
 import { StoryboardState } from './types';
 
@@ -49,7 +50,8 @@ const DataConnection: React.FC<Props> = ({ state, onUpdateState, initialConfig }
   }, [logs]);
 
   const getSafeFirestore = () => {
-    const app = getApps().length === 0 ? initializeApp(config) : getApp();
+    // Fix: Access getApps, initializeApp, and getApp through the firebaseApp namespace
+    const app = firebaseApp.getApps().length === 0 ? firebaseApp.initializeApp(config) : firebaseApp.getApp();
     try {
       addLog(`Initializing Firestore client for: ${config.projectId}`, "info");
       return initializeFirestore(app, { experimentalForceLongPolling: true });
@@ -193,7 +195,7 @@ const DataConnection: React.FC<Props> = ({ state, onUpdateState, initialConfig }
           disabled={connectionStatus === 'CONNECTING'}
           className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-sm flex items-center justify-center gap-4 hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95 disabled:opacity-50"
         >
-          {connectionStatus === 'CONNECTING' ? <Loader2 className="animate-spin" size={20} /> : <WifiOff size={20} />}
+          {connectionStatus === 'CONNECTING' ? <Loader2 className="animate-spin" size={20} /> : <Wifi size={20} />}
           {connectionStatus === 'CONNECTING' ? 'Establishing Vault Link...' : connectionStatus === 'CONNECTED' ? 'Reconnect to Firebase' : 'Connect to Firebase'}
         </button>
       </section>
@@ -301,7 +303,7 @@ const SyncCard = ({ title, icon, desc, btnLabel, onClick, status, disabled, acce
         <p className="text-sm text-slate-400 font-medium leading-relaxed max-w-[280px]">{desc}</p>
       </div>
       <button 
-        onClick={onClick}
+        onClick={onClick} 
         disabled={disabled || isLoading || isSuccess}
         className={`w-full py-5 rounded-2xl font-black uppercase tracking-widest text-[11px] transition-all flex items-center justify-center gap-3 ${
           isSuccess ? 'bg-emerald-600 text-white' : 

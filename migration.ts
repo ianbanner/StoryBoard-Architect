@@ -1,10 +1,13 @@
+/**
+ * migration.ts
+ * Refactored for Chunked Batch Processing (Firestore 500-op Limit)
+ */
 
-import { db } from './App';
-import { doc, getDoc, setDoc, collection, writeBatch } from 'firebase/firestore';
-import { CardType } from './types';
+import { db } from './firebase_init';
+import { doc, getDoc, writeBatch } from 'firebase/firestore';
 
 export const runStoryMigration = async (projectId: string) => {
-  console.log("🚀 Starting Migration for Project:", projectId);
+  console.log("🚀 Starting Chunked Migration for Project:", projectId);
 
   try {
     // 1. Fetch the legacy Atomic Document
@@ -22,13 +25,28 @@ export const runStoryMigration = async (projectId: string) => {
       throw new Error(`Project ${projectId} not found in the atomic record.`);
     }
 
-    const batch = writeBatch(db);
+    // Initialize Batching Logic
+    let batch = writeBatch(db);
+    let opCount = 0;
+    const BATCH_LIMIT = 450; // Safety threshold below Firestore's 500 limit
     const cards = project.cards;
 
-    // 2. Identify and Migrating Scenes
+    // Helper to handle batch resetting
+    const incrementAndCheckBatch = async () => {
+      opCount++;
+      if (opCount >= BATCH_LIMIT) {
+        console.log(`📦 Reached ${opCount} operations. Committing chunk and resetting batch...`);
+        await batch.commit();
+        batch = writeBatch(db);
+        opCount = 0;
+      }
+    };
+
+    // 2. Identify and Migrate Scenes
     const sceneIds = Object.keys(cards).filter(id => cards[id].type === 'SCENE');
     
-    sceneIds.forEach((sceneId, index) => {
+    // Use for...of to allow proper async/await flow control
+    for (const [index, sceneId] of sceneIds.entries()) {
       const oldScene = cards[sceneId];
       const sceneRef = doc(db, "scenes", sceneId);
       
@@ -38,15 +56,17 @@ export const runStoryMigration = async (projectId: string) => {
         orderIndex: index,
         title: oldScene.title || "Untitled Scene",
         description: oldScene.description || "",
-        associatedBeatId: oldScene.associatedBeats?.[0] || null, // Taking first beat as primary
+        associatedBeatId: oldScene.associatedBeats?.[0] || null,
         locationId: oldScene.primaryLocationId || null,
         emotionalValue: oldScene.emotionalValue || 'POSITIVE',
         lastUpdated: Date.now()
       });
 
+      await incrementAndCheckBatch();
+
       // 3. Migrate Chapters belonging to this Scene
       if (oldScene.children && oldScene.children.length > 0) {
-        oldScene.children.forEach((chapterId: string, chapIndex: number) => {
+        for (const [chapIndex, chapterId] of oldScene.children.entries()) {
           const oldChapter = cards[chapterId];
           if (oldChapter) {
             const chapterRef = doc(db, "chapters", chapterId);
@@ -61,16 +81,23 @@ export const runStoryMigration = async (projectId: string) => {
               conflict: oldChapter.conflict || "",
               lastUpdated: Date.now()
             });
-          }
-        });
-      }
-    });
 
-    // 4. Execute the migration
-    await batch.commit();
-    console.log("✅ Migration Successful! Check your Firestore for 'scenes' and 'chapters' collections.");
+            await incrementAndCheckBatch();
+          }
+        }
+      }
+    }
+
+    // 4. Final Flush: Execute the remaining operations
+    if (opCount > 0) {
+      console.log(`🏁 Committing final ${opCount} operations...`);
+      await batch.commit();
+    }
+
+    console.log("✅ Migration Successful! Relational structure created in Firestore.");
     
-  } catch (error) {
+  } catch (error: any) {
     console.error("❌ Migration Failed:", error);
+    alert(`Migration Error: ${error.message}`);
   }
 };

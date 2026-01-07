@@ -1,7 +1,8 @@
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Zap, Search, LayoutDashboard, Users, MapPin, Compass, Cloud, Target, Loader2, LogOut, ShieldCheck, CheckCircle2, AlertCircle, ChevronDown, Settings, Database, Binary, BookOpen, Plus, Minus, Sparkles, UserPlus, Lock, ShieldAlert, CheckSquare, Square, Trash2, Key, Gavel, FileDown, Terminal, Wifi, Rocket, Repeat, Anchor, ArrowRightLeft } from 'lucide-react';
-import { initializeApp, getApps, getApp } from 'firebase/app';
+// Fix: Use namespace import for firebase/app to resolve "no exported member" errors
+import * as firebaseApp from 'firebase/app';
 import { getFirestore, doc, setDoc, getDoc, initializeFirestore, Firestore } from 'firebase/firestore';
 import { CardType, StoryCard, StoryboardState, Project, AuthUser, Location, Character, KBArticle, UserProfile, Tag, AIScript, BeatType, SetupPayoff, SPPart } from './types';
 import { SidebarItem } from './CommonUI';
@@ -14,7 +15,9 @@ import CharacterBible from './CharacterBible';
 import Locations from './Locations';
 import SetupPayoffBible from './SetupPayoffBible';
 import FirebaseSync from './FirebaseSync';
-import DataExplorer, { sanitizeForFirestore } from './DataExplorer';
+// Fix: sanitizeForFirestore is exported from core_utils, not DataExplorer
+import DataExplorer from './DataExplorer';
+import { sanitizeForFirestore } from './core_utils';
 import KnowledgeBaseEditor from './KnowledgeBaseEditor';
 import AICleanup from './AICleanup';
 import GovernanceHub from './GovernanceHub';
@@ -23,6 +26,8 @@ import ExportHub from './ExportHub';
 import DatabaseSync from './DatabaseSync';
 import ProjectBoost from './ProjectBoost';
 import MoveThingsAround from './MoveThingsAround';
+// Fix: Import central db instance from firebase_init
+import { db as centralDb } from './firebase_init';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
@@ -35,20 +40,8 @@ const FIREBASE_CONFIG = {
   appId: "1:688524050076:web:d9d4a0d6f4f2219ccab759"
 };
 
-let firestoreInstance: Firestore | null = null;
-
-export const getFirestoreInstance = (): Firestore => {
-  if (firestoreInstance) return firestoreInstance;
-  const app = getApps().length === 0 ? initializeApp(FIREBASE_CONFIG) : getApp();
-  try {
-    firestoreInstance = initializeFirestore(app, { experimentalForceLongPolling: true });
-  } catch (e) {
-    firestoreInstance = getFirestore(app);
-  }
-  return firestoreInstance;
-};
-
-export const db = getFirestoreInstance();
+// Fix: Reuse the centralized db instance instead of local initialization to avoid redundancy and errors
+export const db = centralDb;
 
 const BEAT_METADATA: Record<string, string> = {
   [BeatType.OPENING_IMAGE]: "The first thing we see. Sets the tone, the mood, and the world.",
@@ -181,8 +174,7 @@ const App: React.FC = () => {
       setDbStatus('LOADING');
       setShowInitModal(true);
       try {
-        const firestore = getFirestoreInstance();
-        const probeDoc = doc(firestore, "data", "storyboard_state");
+        const probeDoc = doc(db, "data", "storyboard_state");
         await getDoc(probeDoc);
         setDbStatus('SUCCESS');
       } catch (err: any) {
@@ -212,8 +204,7 @@ const App: React.FC = () => {
   const syncToCloud = useCallback(async () => {
     if (dbStatus !== 'SUCCESS' || !isHydrated || !user) return; 
     try {
-      const firestore = getFirestoreInstance();
-      const stateDoc = doc(firestore, "data", "storyboard_state");
+      const stateDoc = doc(db, "data", "storyboard_state");
       const cleanState = sanitizeForFirestore(stateRef.current);
       await setDoc(stateDoc, cleanState);
     } catch (err) {
@@ -225,8 +216,7 @@ const App: React.FC = () => {
     if (isSyncing || dbStatus !== 'SUCCESS') return;
     setIsSyncing(true);
     try {
-      const firestore = getFirestoreInstance();
-      const stateDoc = doc(firestore, "data", "storyboard_state");
+      const stateDoc = doc(db, "data", "storyboard_state");
       const snap = await getDoc(stateDoc);
       if (snap.exists()) {
         const remoteState = snap.data() as StoryboardState;
