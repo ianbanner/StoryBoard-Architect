@@ -23,6 +23,13 @@ export enum BeatType {
   FINAL_IMAGE = "15. Final Image"
 }
 
+export type SPPart = 'SETUP' | 'BUMP' | 'PAYOFF';
+
+export interface SPLink {
+  id: string;
+  part: SPPart;
+}
+
 export interface Tag {
   id: string;
   label: string;
@@ -68,7 +75,8 @@ export interface StoryCard {
   associatedBeats?: BeatType[]; // Attribute: Beats anchor units to the structural roadmap
   location?: string;
   primaryLocationId?: string;
-  associatedSetupPayoffIds?: string[]; // Links to Setups & Payoffs
+  associatedSetupPayoffIds?: string[]; // Legacy link to SPs
+  linkedSetupPayoffs?: SPLink[]; // New granular link to SP parts
   basicAction?: string;
   conflict?: string;
   conflictSubjectAId?: string;

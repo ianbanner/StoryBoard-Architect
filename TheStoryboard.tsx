@@ -5,10 +5,11 @@ import {
     Sparkles, BrainCircuit, Loader2, MessageSquare, ListTree, ChevronDown, 
     ChevronUp, FileText, Type, CheckCircle2, Users, Layout, Activity, 
     ArrowUpRight, TrendingUp, TrendingDown, Book, Anchor, PanelLeftClose, 
-    PanelLeftOpen, Search, Info, Link as LinkIcon, Flag, Repeat
+    PanelLeftOpen, Search, Info, Link as LinkIcon, Flag, Repeat, Footprints, Target,
+    PlusCircle
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
-import { CardType, StoryCard, Character, Location, KBArticle, BeatType, SetupPayoff } from './types';
+import { CardType, StoryCard, Character, Location, KBArticle, BeatType, SetupPayoff, SPPart } from './types';
 import { TabButton } from './CommonUI';
 
 interface Props {
@@ -24,6 +25,8 @@ interface Props {
   onAddSibling: (id: string) => void;
   onAssignBeat: (cardId: string, beat: BeatType) => void;
   onUnassignBeat: (cardId: string, beat: BeatType) => void;
+  onAssignSPPart: (cardId: string, spId: string, part: SPPart) => void;
+  onUnassignSPPart: (cardId: string, spId: string, part: SPPart) => void;
   cardScale: number;
   isHydrated: boolean;
   currentProjectId: string;
@@ -42,27 +45,26 @@ const getInitials = (name: string) => {
 const TheStoryboard: React.FC<Props> = ({ 
   cards, sceneOrder, characters = [], locations = [], setupPayoffs = [], knowledgeBase = {}, 
   onUpdateCard, onDeleteCard, onAddChild, onAddSibling, onAssignBeat, onUnassignBeat,
+  onAssignSPPart, onUnassignSPPart,
   cardScale, isHydrated, currentProjectId
 }) => {
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
-  const [kbBeatType, setKbBeatType] = useState<BeatType | null>(null);
+  const [kbBeatType, setKbBeatType] = useState<BeatType | string | null>(null);
+  const [assigningBeat, setAssigningBeat] = useState<BeatType | null>(null);
+  const [assigningSP, setAssigningSP] = useState<{ id: string, part: SPPart, title: string } | null>(null);
   const [writingCardId, setWritingCardId] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll logic: When editor opens, move card to the left-most visible area
+  // Auto-scroll logic
   useEffect(() => {
     if (editingCardId && scrollContainerRef.current) {
-      // Small delay to ensure panel transition has started and layout is updated
       setTimeout(() => {
         const element = document.getElementById(`card-anchor-${editingCardId}`);
         const container = scrollContainerRef.current;
         if (element && container) {
-          // We align to 'start' so the card becomes the leftmost item. 
-          // We use a manual scroll calculation to ensure a specific 40px "breathing room" margin.
           const containerRect = container.getBoundingClientRect();
           const elementRect = element.getBoundingClientRect();
           const relativeLeft = elementRect.left - containerRect.left;
-          
           container.scrollBy({ 
             left: relativeLeft - 40, 
             behavior: 'smooth' 
@@ -97,10 +99,15 @@ const TheStoryboard: React.FC<Props> = ({
     return map;
   }, [cards]);
 
-  const handleDragStart = (e: React.DragEvent, beat: BeatType) => {
-    e.dataTransfer.setData('text/plain', beat);
-    e.dataTransfer.effectAllowed = 'link';
-  };
+  const spAssignments = useMemo(() => {
+    const map: Record<string, string> = {}; // key: "spId:part" -> cardId
+    Object.values(cards).forEach(card => {
+        card.linkedSetupPayoffs?.forEach(link => {
+            map[`${link.id}:${link.part}`] = card.id;
+        });
+    });
+    return map;
+  }, [cards]);
 
   const acts = useMemo(() => {
     return [
@@ -113,65 +120,160 @@ const TheStoryboard: React.FC<Props> = ({
 
   return (
     <div className="h-full w-full flex bg-[#f8fafc] relative overflow-hidden">
-      <aside className="h-full bg-white/90 backdrop-blur-xl border-r border-slate-200 w-16 group hover:w-80 transition-all duration-500 ease-in-out flex flex-col z-30 shadow-2xl shadow-slate-100 overflow-hidden">
-        <div className="p-4 flex items-center gap-4 border-b border-slate-100 shrink-0 h-20">
-          <div className="w-8 h-8 bg-amber-500 text-white rounded-lg flex items-center justify-center shadow-lg shadow-amber-100 shrink-0">
-             <Anchor size={16} />
+      
+      {/* Sidebar Container: Left Alignment for both folding columns */}
+      <div className="h-full flex z-30 shrink-0">
+        
+        {/* COL 1: Beats Registry */}
+        <aside className="h-full bg-white border-r border-slate-100 w-16 group/left hover:w-80 transition-all duration-500 ease-in-out flex flex-col shadow-2xl shadow-slate-100 overflow-hidden relative">
+          <div className="p-4 flex items-center gap-4 border-b border-slate-100 shrink-0 h-20">
+            <div className="w-8 h-8 bg-amber-500 text-white rounded-lg flex items-center justify-center shadow-lg shadow-amber-100 shrink-0">
+               <Anchor size={16} />
+            </div>
+            <h2 className="text-sm font-black uppercase tracking-widest text-slate-800 opacity-0 group-hover/left:opacity-100 transition-opacity duration-300 whitespace-nowrap">Beats Registry</h2>
           </div>
-          <h2 className="text-sm font-black uppercase tracking-widest text-slate-800 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">Beats Registry</h2>
-        </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-2 group-hover:p-4 space-y-2">
-            {Object.values(BeatType).map((beat) => {
-                const assignedCardId = beatAssignments[beat];
-                const isAssigned = !!assignedCardId;
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-2 group-hover/left:p-4 space-y-2">
+              {Object.values(BeatType).map((beat) => {
+                  const assignedCardId = beatAssignments[beat];
+                  const isAssigned = !!assignedCardId;
+                  return (
+                      <div 
+                          key={beat} 
+                          className={`group/item relative rounded-2xl border transition-all duration-300 overflow-hidden ${
+                              isAssigned ? 'bg-slate-50 border-slate-100' : 'bg-white border-slate-100 hover:border-amber-200 hover:shadow-lg'
+                          } ${isAssigned ? 'h-auto p-2 group-hover/left:p-4' : 'h-12 group-hover/left:h-auto p-2 group-hover/left:p-4'}`}
+                      >
+                          <div className="flex items-center justify-between gap-4">
+                              <div className="flex-1 min-w-0">
+                                  <h3 className={`text-[10px] font-black uppercase tracking-tight truncate ${
+                                      isAssigned ? 'text-slate-300 line-through' : 'text-amber-500'
+                                  }`}>
+                                      {beat.split('. ')[1]}
+                                  </h3>
+                                  <div className="hidden group-hover/left:block mt-2">
+                                      {isAssigned ? (
+                                          <div className="flex items-center gap-2">
+                                              <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
+                                              <span className="text-[9px] font-bold text-indigo-400 truncate uppercase tracking-widest">
+                                                  Linked: {cards[assignedCardId!]?.title}
+                                              </span>
+                                          </div>
+                                      ) : (
+                                          <p className="text-[9px] text-slate-400 font-medium">Click Link to assign</p>
+                                      )}
+                                  </div>
+                              </div>
+                              <div className="opacity-0 group-hover/left:opacity-100 transition-opacity flex gap-1">
+                                  {!isAssigned && (
+                                      <button 
+                                          onClick={() => setAssigningBeat(beat)}
+                                          className="p-1.5 rounded-lg transition-all bg-amber-500 border border-amber-600 text-white hover:bg-amber-600 shadow-sm"
+                                          title="Link to Narrative Unit"
+                                      >
+                                          <LinkIcon size={12} />
+                                      </button>
+                                  )}
+                                  <button 
+                                      onClick={() => setKbBeatType(beat)}
+                                      className="p-1.5 rounded-lg transition-all bg-white border border-slate-100 text-slate-400 hover:text-indigo-600 shadow-sm"
+                                  >
+                                      <BookOpen size={12} />
+                                  </button>
+                              </div>
+                          </div>
+                      </div>
+                  );
+              })}
+          </div>
+        </aside>
 
-                return (
-                    <div 
-                        key={beat} 
-                        draggable={!isAssigned}
-                        onDragStart={(e) => handleDragStart(e, beat)}
-                        className={`group/item relative rounded-2xl border transition-all duration-300 overflow-hidden ${
-                            isAssigned ? 'bg-slate-50 border-slate-100 cursor-default' : 'bg-white border-slate-100 hover:border-amber-200 hover:shadow-lg cursor-grab active:cursor-grabbing'
-                        } ${isAssigned ? 'h-auto p-2 group-hover:p-4' : 'h-12 group-hover:h-auto p-2 group-hover:p-4'}`}
-                    >
-                        <div className="flex items-center justify-between gap-4">
-                            <div className="flex-1 min-w-0">
-                                <h3 className={`text-[10px] font-black uppercase tracking-tight truncate ${
-                                    isAssigned ? 'text-slate-300 line-through' : 'text-amber-500'
-                                }`}>
-                                    {beat.split('. ')[1]}
-                                </h3>
-                                
-                                <div className="hidden group-hover:block mt-2">
-                                    {isAssigned ? (
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
-                                            <span className="text-[9px] font-bold text-indigo-400 truncate uppercase tracking-widest">
-                                                Linked: {cards[assignedCardId!]?.title}
-                                            </span>
-                                        </div>
-                                    ) : (
-                                        <p className="text-[9px] text-slate-400 font-medium">Drag to assign beat</p>
-                                    )}
-                                </div>
-                            </div>
-                            
-                            <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button 
-                                    onClick={() => setKbBeatType(beat)}
-                                    className="p-1.5 rounded-lg transition-all bg-white border border-slate-100 text-slate-400 hover:text-indigo-600 shadow-sm"
-                                >
-                                    <BookOpen size={12} />
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                );
-            })}
-        </div>
-      </aside>
+        {/* COL 2: SETUP/PAYOFF CARDS */}
+        <aside className="h-full bg-white border-r border-slate-100 w-16 group/right hover:w-80 transition-all duration-500 ease-in-out flex flex-col shadow-2xl shadow-slate-100 overflow-hidden relative">
+          <div className="p-4 flex items-center gap-4 border-b border-slate-100 shrink-0 h-20">
+            <div className="w-8 h-8 bg-sky-500 text-white rounded-lg flex items-center justify-center shadow-lg shadow-sky-100 shrink-0">
+               <Repeat size={16} />
+            </div>
+            <h2 className="text-sm font-black uppercase tracking-widest text-slate-800 opacity-0 group-hover/right:opacity-100 transition-opacity duration-300 whitespace-nowrap">Setup/Payoff Cards</h2>
+            <button 
+                onClick={() => setKbBeatType("setup and pay off overview")}
+                className="ml-auto opacity-0 group-hover/right:opacity-100 p-1.5 rounded-lg bg-white border border-slate-100 text-slate-400 hover:text-sky-600 transition-all shadow-sm"
+                title="Overview Methodology"
+            >
+                <BookOpen size={12} />
+            </button>
+          </div>
 
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-2 group-hover/right:p-4 space-y-8">
+              {setupPayoffs.map((sp) => {
+                  const parts: SPPart[] = ['SETUP', 'BUMP', 'PAYOFF'];
+                  return (
+                      <div key={sp.id} className="space-y-3">
+                          <div className="flex items-center justify-between px-1">
+                            <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest truncate max-w-[150px]">
+                               {sp.title}
+                            </h3>
+                            <div className="h-[1px] flex-1 bg-slate-100 ml-3 opacity-0 group-hover/right:opacity-100"></div>
+                          </div>
+                          <div className="space-y-2">
+                              {parts.map(part => {
+                                  const assignedId = spAssignments[`${sp.id}:${part}`];
+                                  const isAssigned = !!assignedId;
+                                  
+                                  const activeColorClass = part === 'SETUP' ? 'bg-sky-500 text-white' : part === 'BUMP' ? 'bg-violet-500 text-white' : 'bg-emerald-500 text-white';
+                                  const mutedColorClass = part === 'SETUP' ? 'bg-sky-50 text-sky-300' : part === 'BUMP' ? 'bg-violet-50 text-violet-300' : 'bg-emerald-50 text-emerald-300';
+
+                                  return (
+                                      <div 
+                                          key={part} 
+                                          className={`group/part p-3 rounded-2xl border transition-all duration-300 flex items-center justify-between ${
+                                              isAssigned ? 'border-slate-100 bg-slate-50 shadow-inner' : 'bg-white border-slate-100 hover:border-sky-300 hover:shadow-lg'
+                                          }`}
+                                      >
+                                          <div className="min-w-0 flex-1">
+                                              <div className="flex items-center gap-3">
+                                                  <span className={`text-[9px] font-black px-2 py-0.5 rounded-lg uppercase tracking-tighter shrink-0 shadow-sm ${isAssigned ? mutedColorClass : activeColorClass}`}>
+                                                      {part}
+                                                  </span>
+                                                  <span className={`text-[10px] font-black uppercase tracking-tight truncate ${isAssigned ? 'line-through text-slate-300' : 'text-slate-700'}`}>
+                                                      {sp.title}
+                                                  </span>
+                                              </div>
+                                              {isAssigned && (
+                                                  <div className="mt-1 flex items-center gap-2 opacity-0 group-hover/right:opacity-100 transition-opacity">
+                                                      <div className="w-1 h-1 rounded-full bg-sky-400" />
+                                                      <span className="text-[7px] font-black uppercase text-sky-400 tracking-widest truncate">Linked: {cards[assignedId]?.title}</span>
+                                                  </div>
+                                              )}
+                                          </div>
+
+                                          {!isAssigned && (
+                                              <button 
+                                                  onClick={() => setAssigningSP({ id: sp.id, part, title: sp.title })}
+                                                  className="opacity-0 group-hover/right:opacity-100 p-2 rounded-xl transition-all bg-sky-500 text-white hover:bg-sky-600 shadow-lg shadow-sky-100 hover:scale-110 active:scale-95"
+                                                  title={`Link ${part} to scene/chapter`}
+                                              >
+                                                  <LinkIcon size={12} />
+                                              </button>
+                                          )}
+                                      </div>
+                                  );
+                              })}
+                          </div>
+                      </div>
+                  );
+              })}
+              {setupPayoffs.length === 0 && (
+                  <div className="text-center py-12 flex flex-col items-center gap-4 opacity-30">
+                      <Repeat size={40} className="text-slate-400" />
+                      <div className="text-[9px] font-bold uppercase tracking-widest">No Narrative Loops Defined</div>
+                  </div>
+              )}
+          </div>
+        </aside>
+      </div>
+
+      {/* Main Canvas */}
       <div ref={scrollContainerRef} className="flex-1 overflow-auto custom-scrollbar dot-grid relative transition-all duration-500">
         <div className="flex-1 overflow-auto">
           <div className="flex flex-col gap-32 p-32 min-w-max">
@@ -204,6 +306,7 @@ const TheStoryboard: React.FC<Props> = ({
                         onOpenWriter={setWritingCardId}
                         onAssign={onAssignBeat}
                         onUnassignBeat={onUnassignBeat}
+                        onUnassignSPPart={onUnassignSPPart}
                         cardScale={cardScale}
                     />
                   ))}
@@ -226,6 +329,7 @@ const TheStoryboard: React.FC<Props> = ({
         </div>
       </div>
 
+      {/* Modals & Overlays */}
       {editingCardId && cards[editingCardId] && (
         <STCCardEditor 
           card={cards[editingCardId]} 
@@ -243,6 +347,30 @@ const TheStoryboard: React.FC<Props> = ({
           onClose={() => setKbBeatType(null)} 
         />
       )}
+      {assigningBeat && (
+        <BeatAssignmentSelector 
+          beat={assigningBeat}
+          cards={cards}
+          sceneOrder={sceneOrder}
+          onAssign={(cardId) => {
+            onAssignBeat(cardId, assigningBeat);
+            setAssigningBeat(null);
+          }}
+          onClose={() => setAssigningBeat(null)}
+        />
+      )}
+      {assigningSP && (
+        <SPAssignmentSelector 
+          sp={assigningSP}
+          cards={cards}
+          sceneOrder={sceneOrder}
+          onAssign={(cardId) => {
+            onAssignSPPart(cardId, assigningSP.id, assigningSP.part);
+            setAssigningSP(null);
+          }}
+          onClose={() => setAssigningSP(null)}
+        />
+      )}
       {writingCardId && cards[writingCardId] && (
         <DraftingRoom 
           card={cards[writingCardId]}
@@ -257,13 +385,215 @@ const TheStoryboard: React.FC<Props> = ({
   );
 };
 
+const SPAssignmentSelector = ({ sp, cards, sceneOrder, onAssign, onClose }: { 
+  sp: { id: string, part: SPPart, title: string }, 
+  cards: Record<string, StoryCard>, 
+  sceneOrder: string[], 
+  onAssign: (id: string) => void, 
+  onClose: () => void 
+}) => {
+  const [search, setSearch] = useState('');
+  const filteredScenes = useMemo(() => {
+    return sceneOrder.filter(id => {
+      const scene = cards[id];
+      const matchScene = scene.title.toLowerCase().includes(search.toLowerCase());
+      const matchChapters = scene.children.some(childId => cards[childId]?.title.toLowerCase().includes(search.toLowerCase()));
+      return matchScene || matchChapters;
+    });
+  }, [search, cards, sceneOrder]);
+
+  const colorClass = sp.part === 'SETUP' ? 'bg-sky-500' : sp.part === 'BUMP' ? 'bg-violet-500' : 'bg-emerald-500';
+
+  return (
+    <div className="fixed inset-0 z-[3000] flex items-center justify-center p-8 bg-slate-900/60 backdrop-blur-md">
+      <div className="bg-white w-full max-w-4xl h-[80vh] rounded-[40px] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+        <header className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+          <div className="flex items-center gap-5">
+            <div className={`w-14 h-14 ${colorClass} rounded-2xl flex items-center justify-center text-white shadow-lg`}>
+              <Repeat size={28} />
+            </div>
+            <div>
+              <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Assign {sp.part}: <span className="text-sky-500">{sp.title}</span></h3>
+              <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Select a Scene or Chapter for this loop part</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-3 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-2xl transition-all">
+            <X size={24} />
+          </button>
+        </header>
+        <div className="p-8 border-b border-slate-50 bg-white">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input 
+              type="text" 
+              placeholder="Search narrative units..." 
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl pl-12 pr-6 py-4 text-sm font-bold outline-none focus:border-sky-500 transition-all"
+            />
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-4 bg-slate-50/30">
+          {filteredScenes.map((sceneId, sIdx) => {
+            const scene = cards[sceneId];
+            return (
+              <div key={sceneId} className="space-y-3">
+                <button 
+                  onClick={() => onAssign(sceneId)}
+                  className="w-full p-6 bg-white border border-slate-200 rounded-3xl flex items-center justify-between group hover:border-sky-400 hover:shadow-xl transition-all text-left"
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="text-xs font-black text-slate-300 w-8">{sIdx + 1}</span>
+                    <div>
+                      <h4 className="font-black text-slate-900 uppercase tracking-tight">{scene.title}</h4>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Scene Unit</p>
+                    </div>
+                  </div>
+                  <div className="opacity-0 group-hover:opacity-100 flex items-center gap-2 text-sky-500 font-black text-[10px] uppercase tracking-widest">
+                    Select <ChevronRight size={14} />
+                  </div>
+                </button>
+                <div className="pl-12 space-y-2">
+                  {scene.children.map((childId, cIdx) => {
+                    const chapter = cards[childId];
+                    if (search && !chapter.title.toLowerCase().includes(search.toLowerCase())) return null;
+                    return (
+                      <button 
+                        key={childId}
+                        onClick={() => onAssign(childId)}
+                        className="w-full p-4 bg-white/50 border border-slate-100 rounded-2xl flex items-center justify-between group hover:bg-white hover:border-sky-400 hover:shadow-lg transition-all text-left"
+                      >
+                        <div className="flex items-center gap-4">
+                          <span className="text-[10px] font-black text-slate-300 w-6">{sIdx + 1}.{cIdx + 1}</span>
+                          <div>
+                            <h5 className="font-bold text-slate-700 text-sm">{chapter.title}</h5>
+                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Chapter Unit</p>
+                          </div>
+                        </div>
+                        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-2 text-sky-500 font-black text-[10px] uppercase tracking-widest">
+                          Select <ChevronRight size={12} />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const BeatAssignmentSelector = ({ beat, cards, sceneOrder, onAssign, onClose }: { 
+  beat: BeatType, 
+  cards: Record<string, StoryCard>, 
+  sceneOrder: string[], 
+  onAssign: (id: string) => void, 
+  onClose: () => void 
+}) => {
+  const [search, setSearch] = useState('');
+  const filteredScenes = useMemo(() => {
+    return sceneOrder.filter(id => {
+      const scene = cards[id];
+      const matchScene = scene.title.toLowerCase().includes(search.toLowerCase());
+      const matchChapters = scene.children.some(childId => cards[childId]?.title.toLowerCase().includes(search.toLowerCase()));
+      return matchScene || matchChapters;
+    });
+  }, [search, cards, sceneOrder]);
+
+  return (
+    <div className="fixed inset-0 z-[3000] flex items-center justify-center p-8 bg-slate-900/60 backdrop-blur-md">
+      <div className="bg-white w-full max-w-4xl h-[80vh] rounded-[40px] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+        <header className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+          <div className="flex items-center gap-5">
+            <div className="w-14 h-14 bg-amber-500 rounded-2xl flex items-center justify-center text-white shadow-lg">
+              <Anchor size={28} />
+            </div>
+            <div>
+              <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Assign Beat: <span className="text-amber-500">{beat.split('. ')[1]}</span></h3>
+              <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Select a Scene or Chapter to anchor this beat</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-3 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-2xl transition-all">
+            <X size={24} />
+          </button>
+        </header>
+
+        <div className="p-8 border-b border-slate-50 bg-white">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input 
+              type="text" 
+              placeholder="Search narrative units..." 
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl pl-12 pr-6 py-4 text-sm font-bold outline-none focus:border-amber-500 transition-all"
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-4 bg-slate-50/30">
+          {filteredScenes.map((sceneId, sIdx) => {
+            const scene = cards[sceneId];
+            return (
+              <div key={sceneId} className="space-y-3">
+                <button 
+                  onClick={() => onAssign(sceneId)}
+                  className="w-full p-6 bg-white border border-slate-200 rounded-3xl flex items-center justify-between group hover:border-amber-400 hover:shadow-xl transition-all text-left"
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="text-xs font-black text-slate-300 w-8">{sIdx + 1}</span>
+                    <div>
+                      <h4 className="font-black text-slate-900 uppercase tracking-tight">{scene.title}</h4>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Scene Unit</p>
+                    </div>
+                  </div>
+                  <div className="opacity-0 group-hover:opacity-100 flex items-center gap-2 text-amber-500 font-black text-[10px] uppercase tracking-widest">
+                    Select <ChevronRight size={14} />
+                  </div>
+                </button>
+
+                <div className="pl-12 space-y-2">
+                  {scene.children.map((childId, cIdx) => {
+                    const chapter = cards[childId];
+                    if (search && !chapter.title.toLowerCase().includes(search.toLowerCase())) return null;
+                    return (
+                      <button 
+                        key={childId}
+                        onClick={() => onAssign(childId)}
+                        className="w-full p-4 bg-white/50 border border-slate-100 rounded-2xl flex items-center justify-between group hover:bg-white hover:border-indigo-400 hover:shadow-lg transition-all text-left"
+                      >
+                        <div className="flex items-center gap-4">
+                          <span className="text-[10px] font-black text-slate-300 w-6">{sIdx + 1}.{cIdx + 1}</span>
+                          <div>
+                            <h5 className="font-bold text-slate-700 text-sm">{chapter.title}</h5>
+                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Chapter Unit</p>
+                          </div>
+                        </div>
+                        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-2 text-indigo-500 font-black text-[10px] uppercase tracking-widest">
+                          Select <ChevronRight size={12} />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const StoryboardSceneColumn = ({ 
     sceneId, index, cards, charactersMap, locationsMap, setupPayoffsMap, onUpdate, onDelete, onAddChild, 
-    onAddSibling, onEdit, onOpenWriter, onAssign, onUnassignBeat, cardScale 
+    onAddSibling, onEdit, onOpenWriter, onAssign, onUnassignBeat, onUnassignSPPart, cardScale 
 }: any) => {
   const scene = cards[sceneId];
   if (!scene) return null;
-
   const childChapters = scene.children || [];
 
   return (
@@ -284,13 +614,11 @@ const StoryboardSceneColumn = ({
           onAddSibling={() => onAddSibling(sceneId)}
           onAssign={onAssign}
           onUnassignBeat={onUnassignBeat}
+          onUnassignSPPart={onUnassignSPPart}
           cardScale={cardScale}
           isSceneRoot
         />
-        
-        {childChapters.length > 0 && (
-          <div className="w-0.5 h-16 bg-slate-200" />
-        )}
+        {childChapters.length > 0 && <div className="w-0.5 h-16 bg-slate-200" />}
       </div>
 
       <div className="relative">
@@ -299,18 +627,13 @@ const StoryboardSceneColumn = ({
             {childChapters.length > 1 && (
               <div 
                 className="absolute top-0 h-0.5 bg-slate-200" 
-                style={{ 
-                  left: '170px', 
-                  right: '170px' 
-                }} 
+                style={{ left: '170px', right: '170px' }} 
               />
             )}
-            
             <div className="flex flex-row gap-12 items-start relative">
                 {childChapters.map((chapterId: string, cIdx: number) => (
                     <div key={chapterId} className="flex flex-col items-center relative">
                         <div className="w-0.5 h-8 bg-slate-200" />
-                        
                         <div className="w-[340px]">
                             <NarrativeCard 
                                 card={cards[chapterId]}
@@ -326,6 +649,7 @@ const StoryboardSceneColumn = ({
                                 onAddSibling={() => onAddSibling(chapterId)}
                                 onAssign={onAssign}
                                 onUnassignBeat={onUnassignBeat}
+                                onUnassignSPPart={onUnassignSPPart}
                                 cardScale={cardScale}
                             />
                         </div>
@@ -334,7 +658,6 @@ const StoryboardSceneColumn = ({
             </div>
           </>
         )}
-
         {childChapters.length === 0 && (
            <div className="flex flex-col items-center">
              <div className="w-0.5 h-8 bg-slate-200 opacity-40" />
@@ -354,19 +677,16 @@ const StoryboardSceneColumn = ({
 
 const NarrativeCard = ({ 
     card, index, cards, onEdit, onDelete, onOpenWriter, onAddChild, onAddSibling, 
-    onAssign, onUnassignBeat, cardScale, isSceneRoot, charactersMap, locationsMap, setupPayoffsMap 
+    onAssign, onUnassignBeat, onUnassignSPPart, cardScale, isSceneRoot, charactersMap, locationsMap, setupPayoffsMap 
 }: any) => {
   if (!card) return null;
-  const [isDragOver, setIsDragOver] = useState(false);
 
   const charA = card.conflictSubjectAId ? charactersMap[card.conflictSubjectAId] : null;
   const charB = card.conflictSubjectBId ? charactersMap[card.conflictSubjectBId] : null;
   const primaryLoc = card.primaryLocationId ? locationsMap[card.primaryLocationId] : null;
-  const associatedSPs = (card.associatedSetupPayoffIds || []).map((id: string) => setupPayoffsMap[id]).filter(Boolean);
   
   const wordCount = useMemo(() => {
     const getCount = (content?: string) => (content || '').split(/\s+/).filter(Boolean).length;
-    
     if (isSceneRoot) {
       return (card.children || []).reduce((acc: number, childId: string) => {
         const child = cards[childId];
@@ -384,42 +704,18 @@ const NarrativeCard = ({
       .join(" • ");
   }, [card.children, cards, isSceneRoot]);
 
-  const defaultDesc = isSceneRoot ? "Enter blueprint details..." : "Enter narrative details...";
-  const isDescriptionDefault = !card.description || card.description === defaultDesc;
-  
-  const displayDescription = (isDescriptionDefault && chapterSummary) 
+  const displayDescription = (!card.description || card.description === (isSceneRoot ? "Enter blueprint details..." : "Enter narrative details...")) && chapterSummary 
     ? chapterSummary 
-    : (card.description || defaultDesc);
+    : (card.description || (isSceneRoot ? "Enter blueprint details..." : "Enter narrative details..."));
 
-  const isShowingSummary = isDescriptionDefault && !!chapterSummary;
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    const beat = e.dataTransfer.getData('text/plain') as BeatType;
-    if (beat && onAssign) {
-      onAssign(card.id, beat);
-    }
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(true);
-  };
-
-  const handleDragLeave = () => {
-    setIsDragOver(false);
-  };
+  const isShowingSummary = (!card.description || card.description.includes('details...')) && !!chapterSummary;
 
   return (
     <div 
       id={`card-anchor-${card.id}`}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
       className={`w-full ${isSceneRoot ? 'min-h-[220px]' : 'min-h-[180px]'} border bg-white border-slate-200 rounded-[24px] p-4 flex flex-col group transition-all relative z-10 overflow-hidden cursor-pointer ${
         isSceneRoot ? 'border-l-indigo-600 border-l-4 shadow-beat' : 'border-l-teal-400 border-l-4 shadow-scene'
-      } ${isDragOver ? 'ring-4 ring-amber-400 ring-offset-2 scale-[1.02] shadow-2xl' : 'hover:shadow-2xl hover:-translate-y-1'}`}
+      } hover:shadow-2xl hover:-translate-y-1`}
       onClick={() => onEdit(card.id)}
     >
       <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20 bg-white/80 backdrop-blur-sm rounded-lg p-1">
@@ -440,45 +736,47 @@ const NarrativeCard = ({
         </p>
       </div>
 
-      {/* Relational Tickets (Badges) Layer */}
-      {( (card.tags && card.tags.length > 0) || primaryLoc || associatedSPs.length > 0 ) && (
-        <div className="flex flex-wrap gap-1 mb-3">
+      <div className="flex flex-wrap gap-1 mb-2">
           {primaryLoc && (
             <div className="flex items-center gap-1 px-2 py-0.5 bg-indigo-600 text-white rounded-md text-[8px] font-black uppercase tracking-widest shadow-sm">
               <MapPin size={8} />
               {primaryLoc.name}
             </div>
           )}
-          {associatedSPs.map((sp: SetupPayoff) => (
-            <div key={sp.id} className="flex items-center gap-1 px-2 py-0.5 bg-sky-500 text-white rounded-md text-[8px] font-black uppercase tracking-widest shadow-sm">
-              <Repeat size={8} />
-              {sp.title}
-            </div>
-          ))}
           {card.tags?.map((tag: any) => (
             <div key={tag.id} className={`flex items-center gap-1 px-2 py-0.5 text-white rounded-md text-[8px] font-black uppercase tracking-widest shadow-sm ${tag.category === 'character' ? 'bg-emerald-600' : 'bg-slate-500'}`}>
               <User size={8} />
               {tag.label}
             </div>
           ))}
-        </div>
-      )}
-
-      {card.associatedBeats && card.associatedBeats.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-2">
-            {card.associatedBeats.map((beat: BeatType) => (
-                <div 
-                    key={beat} 
-                    className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-500 text-white rounded-full text-[8px] font-black uppercase tracking-widest shadow-md shadow-amber-200"
-                    onClick={(e) => { e.stopPropagation(); onUnassignBeat(card.id, beat); }}
-                >
-                    <Anchor size={8} />
-                    {beat.split('. ')[1]}
-                    <X size={7} className="opacity-60 hover:opacity-100" />
-                </div>
-            ))}
-        </div>
-      )}
+          {/* Linked Setup/Bump/Payoff Loops */}
+          {card.linkedSetupPayoffs?.map((link: any) => {
+              const sp = setupPayoffsMap[link.id];
+              if (!sp) return null;
+              const colorClass = link.part === 'SETUP' ? 'bg-sky-500' : link.part === 'BUMP' ? 'bg-violet-500' : 'bg-emerald-500';
+              return (
+                  <div key={`${link.id}:${link.part}`} 
+                       onClick={(e) => { e.stopPropagation(); onUnassignSPPart(card.id, link.id, link.part); }}
+                       className={`flex items-center gap-1 px-1.5 py-0.5 ${colorClass} text-white rounded-md text-[8px] font-black uppercase tracking-widest shadow-sm group/link`}
+                  >
+                      {link.part === 'SETUP' ? <Footprints size={8}/> : link.part === 'BUMP' ? <Repeat size={8}/> : <Target size={8}/>}
+                      {sp.title}
+                      <X size={7} className="opacity-0 group-hover/link:opacity-100 transition-opacity ml-1" />
+                  </div>
+              );
+          })}
+          {card.associatedBeats?.map((beat: BeatType) => (
+              <div 
+                  key={beat} 
+                  className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-500 text-white rounded-full text-[8px] font-black uppercase tracking-widest shadow-md shadow-amber-200 group/beat"
+                  onClick={(e) => { e.stopPropagation(); onUnassignBeat(card.id, beat); }}
+              >
+                  <Anchor size={8} />
+                  {beat.split('. ')[1]}
+                  <X size={7} className="opacity-0 group-hover/beat:opacity-100 transition-opacity ml-1" />
+              </div>
+          ))}
+      </div>
       
       <div className="mt-auto pt-2 border-t border-slate-50 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-1.5">
@@ -493,7 +791,6 @@ const NarrativeCard = ({
              </div>
            )}
         </div>
-
         <div className="flex items-center gap-1.5">
             {card.emotionalValue && (
                 <div className={`p-0.5 rounded-md ${card.emotionalValue === 'POSITIVE' ? 'text-emerald-500 bg-emerald-50' : 'text-rose-500 bg-rose-50'}`}>
@@ -506,22 +803,27 @@ const NarrativeCard = ({
         </div>
       </div>
 
-      <>
-          <button 
-              onClick={(e) => { e.stopPropagation(); onAddSibling(card.id); }} 
-              className="absolute top-1/2 -right-3 -translate-y-1/2 opacity-0 group-hover:opacity-100 bg-white border border-slate-200 p-1 rounded-full shadow-lg hover:scale-110 transition-all z-40 text-slate-400 hover:text-indigo-600 active:scale-90"
-          >
-              <Plus size={10} />
-          </button>
-          {isSceneRoot && (
-              <button 
-                  onClick={(e) => { e.stopPropagation(); onAddChild(card.id); }} 
-                  className="absolute -bottom-3 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-white border border-slate-200 p-1 rounded-full shadow-lg hover:scale-110 transition-all z-40 text-slate-400 hover:text-indigo-600 active:scale-90"
-              >
-                  <Plus size={10} />
-              </button>
-          )}
-      </>
+      {/* Sequential Add Button: The + Arrow on right middle edge */}
+      <button 
+        onClick={(e) => { e.stopPropagation(); onAddSibling(card.id); }} 
+        className="absolute top-1/2 -right-4 -translate-y-1/2 opacity-0 group-hover:opacity-100 bg-indigo-600 text-white p-2 rounded-full shadow-2xl hover:scale-125 transition-all z-40 border-2 border-white flex items-center justify-center group/add"
+        title={`Create next ${card.type === 'SCENE' ? 'Scene' : 'Chapter'} sequence`}
+      >
+        <div className="flex items-center gap-0.5">
+          <Plus size={14} className="stroke-[3]" />
+          <ChevronRight size={14} className="stroke-[3] -ml-1 group-hover/add:translate-x-0.5 transition-transform" />
+        </div>
+      </button>
+
+      {isSceneRoot && (
+        <button 
+            onClick={(e) => { e.stopPropagation(); onAddChild(card.id); }} 
+            className="absolute -bottom-3 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-white border border-slate-200 p-1 rounded-full shadow-lg hover:scale-110 transition-all z-40 text-slate-400 hover:text-indigo-600"
+            title="Add Nested Action Chapter"
+        >
+            <Plus size={10} />
+        </button>
+      )}
     </div>
   );
 };
@@ -531,100 +833,51 @@ const DraftingRoom = ({ card, cards, onClose, onUpdate, charactersMap, locations
   const charB = card.conflictSubjectBId ? charactersMap[card.conflictSubjectBId] : null;
   const primaryLoc = card.primaryLocationId ? locationsMap[card.primaryLocationId] : null;
   const wordCount = (card.draftContent || '').split(/\s+/).filter(Boolean).length;
-
   return (
     <div className="fixed inset-y-0 right-0 w-full bg-white shadow-2xl z-[2000] border-l border-slate-200 flex flex-col animate-in slide-in-from-right duration-300">
       <div className="p-6 border-b flex items-center justify-between shrink-0 bg-slate-50/50">
         <div className="flex items-center gap-6">
           <button onClick={onClose} className="p-3 hover:bg-slate-200 rounded-full text-slate-500 transition-colors"><ChevronRight size={32} /></button>
-          <div>
-            <h2 className="text-xl font-black text-slate-900 tracking-tight">{card.title}</h2>
-          </div>
+          <div><h2 className="text-xl font-black text-slate-900 tracking-tight">{card.title}</h2></div>
         </div>
-        <div className="flex items-center gap-4">
-          <button onClick={onClose} className="p-2 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all"><X size={24} /></button>
-        </div>
+        <div className="flex items-center gap-4"><button onClick={onClose} className="p-2 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all"><X size={24} /></button></div>
       </div>
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 overflow-y-auto custom-scrollbar bg-white flex flex-col">
           <div className="w-full px-12 py-16 flex flex-col gap-10">
-            <div className="flex items-center justify-between text-slate-300 border-b border-slate-50 pb-6">
-              <span className="text-[9px] font-black uppercase tracking-[0.2em] flex items-center gap-2"><CheckCircle2 size={12} className="text-emerald-500" /> Live Vault Sync</span>
-              <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-blue-50 text-blue-600">{wordCount} words</span>
-            </div>
+            <div className="flex items-center justify-between text-slate-300 border-b border-slate-50 pb-6"><span className="text-[9px] font-black uppercase tracking-[0.2em] flex items-center gap-2"><CheckCircle2 size={12} className="text-emerald-500" /> Live Vault Sync</span><span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-blue-50 text-blue-600">{wordCount} words</span></div>
             <input value={card.chapterTitle || ''} onChange={e => onUpdate({ chapterTitle: e.target.value })} placeholder="Reader Facing Chapter Title..." className="w-full bg-transparent border-none p-0 text-5xl font-black text-slate-900 tracking-tight focus:ring-0 placeholder:text-slate-100 font-desc" />
             <textarea autoFocus value={card.draftContent || ''} onChange={e => onUpdate({ draftContent: e.target.value })} placeholder="The scene begins..." className="flex-1 w-full bg-transparent border-none focus:ring-0 p-0 text-3xl font-desc leading-[1.8] text-slate-800 resize-none placeholder:text-slate-50 min-h-[600px] pb-40" />
           </div>
         </div>
         <aside className="w-80 bg-slate-50/50 border-l border-slate-100 flex flex-col p-8 gap-8 shrink-0 overflow-y-auto custom-scrollbar">
-          <div className="space-y-4">
-             <div className="flex items-center gap-3 text-slate-400"><Sparkles size={16} /><h4 className="text-[10px] font-black uppercase tracking-[0.2em]">Blueprint</h4></div>
-             <div className="p-5 bg-white rounded-3xl border border-slate-100 shadow-sm space-y-3 relative overflow-hidden">
-               <h5 className="text-xs font-black text-slate-800 uppercase tracking-widest">{card.title}</h5>
-               <p className="text-xs font-desc italic leading-relaxed text-slate-500">{card.description || "No narrative blueprint defined."}</p>
-             </div>
-          </div>
-          <div className="space-y-4">
-             <div className="flex items-center gap-3 text-rose-400"><Swords size={16} /><h4 className="text-[10px] font-black uppercase tracking-[0.2em]">Conflict</h4></div>
-             <div className="p-5 bg-rose-50/30 rounded-3xl border border-rose-100/30">
-               {charA && charB ? (
-                 <p className="text-[11px] font-black uppercase text-rose-600">{charA.name} vs {charB.name}</p>
-               ) : (
-                 <p className="text-xs font-bold text-slate-700">{card.conflict || "Internal Struggle"}</p>
-               )}
-             </div>
-          </div>
-          <div className="space-y-4">
-             <div className="flex items-center gap-3 text-indigo-500"><MapPin size={16} /><h4 className="text-[10px] font-black uppercase tracking-[0.2em]">Setting</h4></div>
-             <div className="p-4 bg-white rounded-2xl border border-slate-100 flex items-center gap-3 shadow-sm"><MapPin size={14} className="text-indigo-400"/><span className="text-xs font-black text-slate-700">{primaryLoc?.name || "Unset Location"}</span></div>
-          </div>
+          <div className="space-y-4"><div className="flex items-center gap-3 text-slate-400"><Sparkles size={16} /><h4 className="text-[10px] font-black uppercase tracking-[0.2em]">Blueprint</h4></div><div className="p-5 bg-white rounded-3xl border border-slate-100 shadow-sm space-y-3 relative overflow-hidden"><h5 className="text-xs font-black text-slate-800 uppercase tracking-widest">{card.title}</h5><p className="text-xs font-desc italic leading-relaxed text-slate-500">{card.description || "No narrative blueprint defined."}</p></div></div>
+          <div className="space-y-4"><div className="flex items-center gap-3 text-rose-400"><Swords size={16} /><h4 className="text-[10px] font-black uppercase tracking-[0.2em]">Conflict</h4></div><div className="p-5 bg-rose-50/30 rounded-3xl border border-rose-100/30">{charA && charB ? <p className="text-[11px] font-black uppercase text-rose-600">{charA.name} vs {charB.name}</p> : <p className="text-xs font-bold text-slate-700">{card.conflict || "Internal Struggle"}</p>}</div></div>
+          <div className="space-y-4"><div className="flex items-center gap-3 text-indigo-500"><MapPin size={16} /><h4 className="text-[10px] font-black uppercase tracking-[0.2em]">Setting</h4></div><div className="p-4 bg-white rounded-2xl border border-slate-100 flex items-center gap-3 shadow-sm"><MapPin size={14} className="text-indigo-400"/><span className="text-xs font-black text-slate-700">{primaryLoc?.name || "Unset Location"}</span></div></div>
         </aside>
       </div>
     </div>
   );
 };
 
-const KBViewer = ({ beatType, knowledgeBase = {}, onClose }: { beatType: BeatType, knowledgeBase?: Record<string, KBArticle>, onClose: () => void }) => {
+const KBViewer = ({ beatType, knowledgeBase = {}, onClose }: { beatType: BeatType | string, knowledgeBase?: Record<string, KBArticle>, onClose: () => void }) => {
   const article = knowledgeBase[beatType];
   const [coachingAdvice, setCoachingAdvice] = useState<string | null>(null);
   const [isCoaching, setIsCoaching] = useState(false);
-
   const handleCallCoach = async () => {
     setIsCoaching(true);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Coaching Request for ${beatType}. Context: ${article?.content}`,
-      });
+      const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: `Coaching Request for ${beatType}. Context: ${article?.content}`, });
       setCoachingAdvice(response.text);
-    } catch (err: any) {
-      alert("Mentor is offline.");
-    } finally {
-      setIsCoaching(false);
-    }
+    } catch (err: any) { alert("Mentor is offline."); } finally { setIsCoaching(false); }
   };
-
   return (
     <div className="fixed inset-y-0 right-0 w-[500px] bg-white text-slate-900 shadow-2xl z-[2001] border-l border-slate-200 flex flex-col animate-in slide-in-from-right duration-300">
-      <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-        <div className="flex items-center gap-5">
-          <button onClick={onClose} className="p-3 hover:bg-slate-200 rounded-full text-slate-400 transition-colors"><ChevronRight size={32} /></button>
-          <div><h3 className="text-2xl font-bold tracking-tight text-slate-900">{beatType}</h3><span className="text-[10px] font-black uppercase text-amber-600 tracking-widest">Master Methodology</span></div>
-        </div>
-      </div>
+      <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50"><div className="flex items-center gap-5"><button onClick={onClose} className="p-3 hover:bg-slate-200 rounded-full text-slate-400 transition-colors"><ChevronRight size={32} /></button><div><h3 className="text-2xl font-bold tracking-tight text-slate-900">{beatType}</h3><span className="text-[10px] font-black uppercase text-amber-600 tracking-widest">Master Methodology</span></div></div></div>
       <div className="flex-1 overflow-y-auto p-12 custom-scrollbar space-y-10">
-        <div className="p-6 bg-amber-50/30 border border-amber-100 rounded-[32px] space-y-4">
-          <div className="flex items-center gap-3 text-amber-600"><Sparkles size={24} /><h4 className="text-sm font-black uppercase tracking-[0.2em]">Insight</h4></div>
-          <p className="text-xl font-desc italic leading-relaxed text-slate-700">{article?.content || "No advice found."}</p>
-        </div>
-        <div className="space-y-6">
-          <div className="flex items-center gap-3 text-indigo-600"><BrainCircuit size={24} /><h4 className="text-sm font-black uppercase tracking-[0.2em]">Mentor AI</h4></div>
-          <button onClick={handleCallCoach} disabled={isCoaching} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-indigo-600 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-2">
-            {isCoaching ? <Loader2 size={12} className="animate-spin" /> : <MessageSquare size={12} />} Call Coach
-          </button>
-          {coachingAdvice && <div className="p-8 bg-indigo-50 border-2 border-indigo-100 rounded-[32px] animate-in fade-in zoom-in-95 duration-500"><p className="text-lg font-desc italic leading-relaxed text-slate-800">{coachingAdvice}</p></div>}
-        </div>
+        <div className="p-6 bg-amber-50/30 border border-amber-100 rounded-[32px] space-y-4"><div className="flex items-center gap-3 text-amber-600"><Sparkles size={24} /><h4 className="text-sm font-black uppercase tracking-[0.2em]">Insight</h4></div><p className="text-xl font-desc italic leading-relaxed text-slate-700">{article?.content || "No advice found."}</p></div>
+        <div className="space-y-6"><div className="flex items-center gap-3 text-indigo-600"><BrainCircuit size={24} /><h4 className="text-sm font-black uppercase tracking-[0.2em]">Mentor AI</h4></div><button onClick={handleCallCoach} disabled={isCoaching} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-indigo-600 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-2">{isCoaching ? <Loader2 size={12} className="animate-spin" /> : <MessageSquare size={12} />} Call Coach</button>{coachingAdvice && <div className="p-8 bg-indigo-50 border-2 border-indigo-100 rounded-[32px] animate-in fade-in zoom-in-95 duration-500"><p className="text-lg font-desc italic leading-relaxed text-slate-800">{coachingAdvice}</p></div>}</div>
       </div>
     </div>
   );
@@ -632,88 +885,26 @@ const KBViewer = ({ beatType, knowledgeBase = {}, onClose }: { beatType: BeatTyp
 
 const STCCardEditor = ({ card, onClose, onUpdate, characters, locations, setupPayoffs }: any) => {
   const [activeTab, setActiveTab] = useState<'STORY' | 'STC' | 'TAGS'>('STORY');
-  
   const toggleTag = (tagId: string, label: string, category: 'character' | 'location' | 'setuppayoff') => {
     if (category === 'setuppayoff') {
         const isLinked = card.associatedSetupPayoffIds?.includes(tagId);
-        const newList = isLinked 
-          ? (card.associatedSetupPayoffIds || []).filter((id: string) => id !== tagId) 
-          : [...(card.associatedSetupPayoffIds || []), tagId];
+        const newList = isLinked ? (card.associatedSetupPayoffIds || []).filter((id: string) => id !== tagId) : [...(card.associatedSetupPayoffIds || []), tagId];
         onUpdate({ associatedSetupPayoffIds: newList });
         return;
     }
     const isTagged = card.tags?.some((t: any) => t.id === tagId);
-    const newTags = isTagged 
-      ? (card.tags || []).filter((t: any) => t.id !== tagId) 
-      : [...(card.tags || []), { id: tagId, label, category }];
+    const newTags = isTagged ? (card.tags || []).filter((t: any) => t.id !== tagId) : [...(card.tags || []), { id: tagId, label, category }];
     onUpdate({ tags: newTags });
   };
-
-  const setLocation = (locId: string) => {
-    onUpdate({ primaryLocationId: card.primaryLocationId === locId ? null : locId });
-  };
-
+  const setLocation = (locId: string) => { onUpdate({ primaryLocationId: card.primaryLocationId === locId ? null : locId }); };
   return (
     <div className="fixed inset-y-0 right-0 w-[580px] bg-white shadow-2xl z-[1000] border-l border-slate-200 flex flex-col animate-in slide-in-from-right duration-300">
-      <div className="p-8 border-b flex items-center justify-between bg-slate-50/50">
-        <div className="flex items-center gap-6">
-          <button onClick={onClose} className="p-3 hover:bg-slate-200 rounded-full text-slate-500"><ChevronRight size={32} /></button>
-          <div><h3 className="text-2xl font-bold text-slate-900">{card.title}</h3><span className="text-base font-black uppercase text-slate-400 tracking-widest">Chapter Context</span></div>
-        </div>
-      </div>
-      <div className="flex border-b">
-        <TabButton active={activeTab === 'STORY'} label="Blueprint" onClick={() => setActiveTab('STORY')} />
-        <TabButton active={activeTab === 'STC'} label="Transition" onClick={() => setActiveTab('STC')} />
-        <TabButton active={activeTab === 'TAGS'} label="Relational" onClick={() => setActiveTab('TAGS')} />
-      </div>
+      <div className="p-8 border-b flex items-center justify-between bg-slate-50/50"><div className="flex items-center gap-6"><button onClick={onClose} className="p-3 hover:bg-slate-200 rounded-full text-slate-500"><ChevronRight size={32} /></button><div><h3 className="text-2xl font-bold text-slate-900">{card.title}</h3><span className="text-base font-black uppercase text-slate-400 tracking-widest">Chapter Context</span></div></div></div>
+      <div className="flex border-b"><TabButton active={activeTab === 'STORY'} label="Blueprint" onClick={() => setActiveTab('STORY')} /><TabButton active={activeTab === 'STC'} label="Transition" onClick={() => setActiveTab('STC')} /><TabButton active={activeTab === 'TAGS'} label="Relational" onClick={() => setActiveTab('TAGS')} /></div>
       <div className="flex-1 overflow-y-auto p-12 custom-scrollbar space-y-12">
-        {activeTab === 'STORY' && (
-          <div className="space-y-10">
-            <div className="space-y-4"><label className="text-base font-black uppercase text-slate-400 tracking-widest">Internal Title</label><input value={card.title} onChange={e => onUpdate({ title: e.target.value })} className="w-full text-2xl font-bold border-none p-0 focus:ring-0" /></div>
-            <div className="space-y-4"><label className="text-base font-black uppercase text-slate-400 tracking-widest">Reader Facing Title</label><input value={card.chapterTitle || ''} onChange={e => onUpdate({ chapterTitle: e.target.value })} className="w-full text-2xl font-desc italic border-none p-0 focus:ring-0" placeholder="e.g. The Quiet Dawn" /></div>
-            <div className="space-y-4"><label className="text-base font-black uppercase text-slate-400 tracking-widest">Narrative Action</label><textarea value={card.description} onChange={e => onUpdate({ description: e.target.value })} className="w-full h-64 text-xl text-slate-600 border-none p-0 focus:ring-0 resize-none font-desc leading-relaxed" /></div>
-          </div>
-        )}
-        {activeTab === 'STC' && (
-          <div className="space-y-12">
-            <div className="space-y-6"><label className="text-base font-black uppercase text-slate-400 tracking-widest">Emotional Arc (+/-)</label><div className="flex bg-slate-100 p-2 rounded-3xl border border-slate-200"><button onClick={() => onUpdate({ emotionalValue: 'POSITIVE' })} className={`flex-1 py-5 rounded-2xl text-lg font-bold transition-all ${card.emotionalValue === 'POSITIVE' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500'}`}>Positive (+)</button><button onClick={() => onUpdate({ emotionalValue: 'NEGATIVE' })} className={`flex-1 py-5 rounded-2xl text-lg font-bold transition-all ${card.emotionalValue === 'NEGATIVE' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500'}`}>Negative (-)</button></div></div>
-            <div className="space-y-6">
-              <label className="text-base font-black uppercase text-slate-400 tracking-widest flex items-center gap-3"><Swords size={20} /> Narrative Tension</label>
-              <div className="grid grid-cols-2 gap-6">
-                <select value={card.conflictSubjectAId || ''} onChange={e => onUpdate({ conflictSubjectAId: e.target.value })} className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm font-bold appearance-none"><option value="">Side A...</option>{characters.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
-                <select value={card.conflictSubjectBId || ''} onChange={e => onUpdate({ conflictSubjectBId: e.target.value })} className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm font-bold appearance-none"><option value="">Side B...</option>{characters.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
-              </div>
-            </div>
-          </div>
-        )}
-        {activeTab === 'TAGS' && (
-          <div className="space-y-10">
-            <div className="space-y-4">
-              <label className="text-base font-black uppercase text-slate-400 tracking-widest">Primary Setting</label>
-              <div className="grid grid-cols-2 gap-3">
-                {locations.map((loc: any) => (
-                  <button key={loc.id} onClick={() => setLocation(loc.id)} className={`px-4 py-3 rounded-xl text-xs font-bold transition-all border ${card.primaryLocationId === loc.id ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-50 text-slate-500 border-slate-100 hover:border-indigo-100'}`}>{loc.name}</button>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-4 pt-8 border-t border-slate-50">
-              <label className="text-base font-black uppercase text-slate-400 tracking-widest flex items-center gap-2"><Repeat size={14} className="text-sky-500" /> Setup & Payoff Loops</label>
-              <div className="grid grid-cols-2 gap-3">
-                {setupPayoffs.map((sp: any) => (
-                  <button key={sp.id} onClick={() => toggleTag(sp.id, sp.title, 'setuppayoff')} className={`px-4 py-3 rounded-xl text-xs font-bold transition-all border ${card.associatedSetupPayoffIds?.includes(sp.id) ? 'bg-sky-600 text-white border-sky-600' : 'bg-slate-50 text-slate-500 border-slate-100 hover:border-sky-100'}`}>{sp.title}</button>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-4 pt-8 border-t border-slate-50">
-              <label className="text-base font-black uppercase text-slate-400 tracking-widest flex items-center gap-2"><Users size={14} className="text-emerald-500" /> Cast Engagement</label>
-              <div className="grid grid-cols-2 gap-3">
-                {characters.map((char: any) => (
-                  <button key={char.id} onClick={() => toggleTag(char.id, char.name, 'character')} className={`px-4 py-3 rounded-xl text-xs font-bold transition-all border ${card.tags?.some((t: any) => t.id === char.id) ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 text-slate-500 border-slate-100 hover:border-emerald-100'}`}>{char.name}</button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
+        {activeTab === 'STORY' && (<div className="space-y-10"><div className="space-y-4"><label className="text-base font-black uppercase text-slate-400 tracking-widest">Internal Title</label><input value={card.title} onChange={e => onUpdate({ title: e.target.value })} className="w-full text-2xl font-bold border-none p-0 focus:ring-0" /></div><div className="space-y-4"><label className="text-base font-black uppercase text-slate-400 tracking-widest">Reader Facing Title</label><input value={card.chapterTitle || ''} onChange={e => onUpdate({ chapterTitle: e.target.value })} className="w-full text-2xl font-desc italic border-none p-0 focus:ring-0" placeholder="e.g. The Quiet Dawn" /></div><div className="space-y-4"><label className="text-base font-black uppercase text-slate-400 tracking-widest">Narrative Action</label><textarea value={card.description} onChange={e => onUpdate({ description: e.target.value })} className="w-full h-64 text-xl text-slate-600 border-none p-0 focus:ring-0 resize-none font-desc leading-relaxed" /></div></div>)}
+        {activeTab === 'STC' && (<div className="space-y-12"><div className="space-y-6"><label className="text-base font-black uppercase text-slate-400 tracking-widest">Emotional Arc (+/-)</label><div className="flex bg-slate-100 p-2 rounded-3xl border border-slate-200"><button onClick={() => onUpdate({ emotionalValue: 'POSITIVE' })} className={`flex-1 py-5 rounded-2xl text-lg font-bold transition-all ${card.emotionalValue === 'POSITIVE' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500'}`}>Positive (+)</button><button onClick={() => onUpdate({ emotionalValue: 'NEGATIVE' })} className={`flex-1 py-5 rounded-2xl text-lg font-bold transition-all ${card.emotionalValue === 'NEGATIVE' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500'}`}>Negative (-)</button></div></div><div className="space-y-6"><label className="text-base font-black uppercase text-slate-400 tracking-widest flex items-center gap-3"><Swords size={20} /> Narrative Tension</label><div className="grid grid-cols-2 gap-6"><select value={card.conflictSubjectAId || ''} onChange={e => onUpdate({ conflictSubjectAId: e.target.value })} className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm font-bold appearance-none"><option value="">Side A...</option>{characters.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}</select><select value={card.conflictSubjectBId || ''} onChange={e => onUpdate({ conflictSubjectBId: e.target.value })} className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm font-bold appearance-none"><option value="">Side B...</option>{characters.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div></div></div>)}
+        {activeTab === 'TAGS' && (<div className="space-y-10"><div className="space-y-4"><label className="text-base font-black uppercase text-slate-400 tracking-widest">Primary Setting</label><div className="grid grid-cols-2 gap-3">{locations.map((loc: any) => (<button key={loc.id} onClick={() => setLocation(loc.id)} className={`px-4 py-3 rounded-xl text-xs font-bold transition-all border ${card.primaryLocationId === loc.id ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-50 text-slate-500 border-slate-100 hover:border-indigo-100'}`}>{loc.name}</button>))}</div></div><div className="space-y-4 pt-8 border-t border-slate-50"><label className="text-base font-black uppercase text-slate-400 tracking-widest flex items-center gap-2"><Repeat size={14} className="text-sky-500" /> Setup & Payoff Loops</label><div className="grid grid-cols-2 gap-3">{setupPayoffs.map((sp: any) => (<button key={sp.id} onClick={() => toggleTag(sp.id, sp.title, 'setuppayoff')} className={`px-4 py-3 rounded-xl text-xs font-bold transition-all border ${card.associatedSetupPayoffIds?.includes(sp.id) ? 'bg-sky-600 text-white border-sky-600' : 'bg-slate-50 text-slate-500 border-slate-100 hover:border-sky-100'}`}>{sp.title}</button>))}</div></div><div className="space-y-4 pt-8 border-t border-slate-50"><label className="text-base font-black uppercase text-slate-400 tracking-widest flex items-center gap-2"><Users size={14} className="text-emerald-500" /> Cast Engagement</label><div className="grid grid-cols-2 gap-3">{characters.map((char: any) => (<button key={char.id} onClick={() => toggleTag(char.id, char.name, 'character')} className={`px-4 py-3 rounded-xl text-xs font-bold transition-all border ${card.tags?.some((t: any) => t.id === char.id) ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 text-slate-500 border-slate-100 hover:border-emerald-100'}`}>{char.name}</button>))}</div></div></div>)}
       </div>
     </div>
   );

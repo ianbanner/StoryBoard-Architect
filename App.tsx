@@ -1,9 +1,9 @@
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Zap, Search, LayoutDashboard, Users, MapPin, Compass, Cloud, Target, Loader2, LogOut, ShieldCheck, CheckCircle2, AlertCircle, ChevronDown, Settings, Database, Binary, BookOpen, Plus, Minus, Sparkles, UserPlus, Lock, ShieldAlert, CheckSquare, Square, Trash2, Key, Gavel, FileDown, Terminal, Wifi, Rocket, Repeat } from 'lucide-react';
+import { Zap, Search, LayoutDashboard, Users, MapPin, Compass, Cloud, Target, Loader2, LogOut, ShieldCheck, CheckCircle2, AlertCircle, ChevronDown, Settings, Database, Binary, BookOpen, Plus, Minus, Sparkles, UserPlus, Lock, ShieldAlert, CheckSquare, Square, Trash2, Key, Gavel, FileDown, Terminal, Wifi, Rocket, Repeat, Anchor, ArrowRightLeft } from 'lucide-react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, setDoc, getDoc, initializeFirestore, Firestore } from 'firebase/firestore';
-import { CardType, StoryCard, StoryboardState, Project, AuthUser, Location, Character, KBArticle, UserProfile, Tag, AIScript, BeatType, SetupPayoff } from './types';
+import { CardType, StoryCard, StoryboardState, Project, AuthUser, Location, Character, KBArticle, UserProfile, Tag, AIScript, BeatType, SetupPayoff, SPPart } from './types';
 import { SidebarItem } from './CommonUI';
 
 // Modular Components
@@ -22,6 +22,7 @@ import AIScriptsEditor from './AIScriptsEditor';
 import ExportHub from './ExportHub';
 import DatabaseSync from './DatabaseSync';
 import ProjectBoost from './ProjectBoost';
+import MoveThingsAround from './MoveThingsAround';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
@@ -158,12 +159,12 @@ const SUPERUSER_CONFIG: UserProfile = {
   email: "dave@bigagility.com",
   password: "funnypig",
   isSuperuser: true,
-  permissions: { KB: true, AI_CLEANUP: true, FIREBASE: true, DATA_EXPLORER: true, ADMIN: true, GOVERNANCE: true, PUBLISHING: true, AI_SCRIPTS: true, DATABASE_SYNC: true, PROJECT_BOOST: true }
+  permissions: { KB: true, AI_CLEANUP: true, FIREBASE: true, DATA_EXPLORER: true, ADMIN: true, GOVERNANCE: true, PUBLISHING: true, AI_SCRIPTS: true, DATABASE_SYNC: true, PROJECT_BOOST: true, MOVE_THINGS_AROUND: true }
 };
 
 const App: React.FC = () => {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [activeView, setActiveView] = useState<'STORYBOARD' | 'PEOPLE' | 'LOCATIONS' | 'SETUP_PAYOFF' | 'PLANNING' | 'FIREBASE' | 'ADMIN' | 'DATA_EXPLORER' | 'KB' | 'AI_CLEANUP' | 'GOVERNANCE' | 'PUBLISHING' | 'AI_SCRIPTS' | 'DATABASE_SYNC' | 'PROJECT_BOOST'>('PLANNING');
+  const [activeView, setActiveView] = useState<'STORYBOARD' | 'PEOPLE' | 'LOCATIONS' | 'SETUP_PAYOFF' | 'PLANNING' | 'FIREBASE' | 'ADMIN' | 'DATA_EXPLORER' | 'KB' | 'AI_CLEANUP' | 'GOVERNANCE' | 'PUBLISHING' | 'AI_SCRIPTS' | 'DATABASE_SYNC' | 'PROJECT_BOOST' | 'MOVE_THINGS_AROUND'>('PLANNING');
   const [sbFontSize, setSbFontSize] = useState(12);
   const [visibilityMode, setVisibilityMode] = useState<'FOCUS' | 'HIDDEN'>('FOCUS');
   const [isSyncing, setIsSyncing] = useState(false);
@@ -307,6 +308,47 @@ const App: React.FC = () => {
     }
   };
 
+  const handleAssignSPPart = (cardId: string, spId: string, part: SPPart) => {
+    if (!activeProject) return;
+    const newCards = { ...activeProject.cards };
+    
+    // Unassign this specific SP part from anywhere else first
+    Object.keys(newCards).forEach(id => {
+      const card = newCards[id];
+      if (card.linkedSetupPayoffs?.some(link => link.id === spId && link.part === part)) {
+        newCards[id] = { 
+          ...card, 
+          linkedSetupPayoffs: card.linkedSetupPayoffs.filter(link => !(link.id === spId && link.part === part)) 
+        };
+      }
+    });
+
+    const target = newCards[cardId];
+    if (target) {
+      newCards[cardId] = { 
+        ...target, 
+        linkedSetupPayoffs: [...(target.linkedSetupPayoffs || []), { id: spId, part }] 
+      };
+    }
+    updateActiveProject({ cards: newCards });
+  };
+
+  const handleUnassignSPPart = (cardId: string, spId: string, part: SPPart) => {
+    if (!activeProject) return;
+    const card = activeProject.cards[cardId];
+    if (card) {
+      updateActiveProject({
+        cards: { 
+          ...activeProject.cards, 
+          [cardId]: { 
+            ...card, 
+            linkedSetupPayoffs: (card.linkedSetupPayoffs || []).filter(link => !(link.id === spId && link.part === part)) 
+          } 
+        }
+      });
+    }
+  };
+
   const handleAddChild = (parentId: string) => {
     if (!activeProject) return;
     const parent = activeProject.cards[parentId];
@@ -359,7 +401,7 @@ const App: React.FC = () => {
 
   if (!user) return <LandingPage onLogin={handleLogin} dbStatus={dbStatus} dbErrorMsg={dbErrorMsg} showInitModal={showInitModal} onCloseInitModal={() => setShowInitModal(false)} membershipError={membershipError} />;
 
-  const isAdminActive = ['ADMIN', 'FIREBASE', 'DATA_EXPLORER', 'KB', 'AI_CLEANUP', 'GOVERNANCE', 'PUBLISHING', 'AI_SCRIPTS', 'DATABASE_SYNC', 'PROJECT_BOOST'].includes(activeView);
+  const isAdminActive = ['ADMIN', 'FIREBASE', 'DATA_EXPLORER', 'KB', 'AI_CLEANUP', 'GOVERNANCE', 'PUBLISHING', 'AI_SCRIPTS', 'DATABASE_SYNC', 'PROJECT_BOOST', 'MOVE_THINGS_AROUND'].includes(activeView);
   const userPerms = user.permissions || {};
   const isDave = user.email.toLowerCase() === "dave@bigagility.com";
 
@@ -387,6 +429,7 @@ const App: React.FC = () => {
                 </button>
                 {isAdminExpanded && (
                   <div className="flex flex-col gap-1 pl-2 w-full">
+                    {userPerms.MOVE_THINGS_AROUND && <SidebarItem isSubmenu icon={<ArrowRightLeft size={18} />} label="Move Things Around" active={activeView === 'MOVE_THINGS_AROUND'} onClick={() => setActiveView('MOVE_THINGS_AROUND')} />}
                     {isDave && <SidebarItem isSubmenu icon={<Gavel size={18} />} label="Governance" active={activeView === 'GOVERNANCE'} onClick={() => setActiveView('GOVERNANCE')} />}
                     {userPerms.DATABASE_SYNC && <SidebarItem isSubmenu icon={<Wifi size={18} />} label="Database Sync" active={activeView === 'DATABASE_SYNC'} onClick={() => setActiveView('DATABASE_SYNC')} />}
                     {userPerms.PROJECT_BOOST && <SidebarItem isSubmenu icon={<Rocket size={18} />} label="Project Boost" active={activeView === 'PROJECT_BOOST'} onClick={() => setActiveView('PROJECT_BOOST')} />}
@@ -430,9 +473,8 @@ const App: React.FC = () => {
           ) : activeProject ? (
             <>
               {activeView === 'PLANNING' && <div className="max-w-7xl mx-auto"><PlanningBoard planning={activeProject.planning} projects={(state.projectOrder || []).map(id => ({ id, name: state.projects[id]?.name || id }))} characters={Object.values(activeProject.characters || {})} activeProjectId={state.activeProjectId} onSwitchProject={(id) => setState(prev => ({ ...prev, activeProjectId: id }))} onCreateProject={() => { const id = generateId(); const p = createEmptyProject(id, "New Story Project"); setState(prev => ({ ...prev, projects: { ...prev.projects, [id]: p }, projectOrder: [...(prev.projectOrder || []), id], activeProjectId: id })); }} setPlanning={(updates) => updateActiveProject({ planning: { ...activeProject.planning, ...updates } })} /></div>}
-              {activeView === 'STORYBOARD' && <TheStoryboard cards={activeProject.cards} sceneOrder={activeProject.sceneOrder || []} characters={Object.values(activeProject.characters || {})} locations={Object.values(activeProject.locations || {})} setupPayoffs={Object.values(activeProject.setupPayoffs || {})} knowledgeBase={activeProject.knowledgeBase || {}} onUpdateCard={(id, updates) => updateActiveProject({ cards: { ...activeProject.cards, [id]: { ...activeProject.cards[id], ...updates } } })} onDeleteCard={handleDeleteCard} onAddChild={handleAddChild} onAddSibling={handleAddSibling} onAssignBeat={handleAssignBeat} onUnassignBeat={handleUnassignBeat} cardScale={sbFontSize / 12} isHydrated={isHydrated} currentProjectId={state.activeProjectId} />}
+              {activeView === 'STORYBOARD' && <TheStoryboard cards={activeProject.cards} sceneOrder={activeProject.sceneOrder || []} characters={Object.values(activeProject.characters || {})} locations={Object.values(activeProject.locations || {})} setupPayoffs={Object.values(activeProject.setupPayoffs || {})} knowledgeBase={activeProject.knowledgeBase || {}} onUpdateCard={(id, updates) => updateActiveProject({ cards: { ...activeProject.cards, [id]: { ...activeProject.cards[id], ...updates } } })} onDeleteCard={handleDeleteCard} onAddChild={handleAddChild} onAddSibling={handleAddSibling} onAssignBeat={handleAssignBeat} onUnassignBeat={handleUnassignBeat} onAssignSPPart={handleAssignSPPart} onUnassignSPPart={handleUnassignSPPart} cardScale={sbFontSize / 12} isHydrated={isHydrated} currentProjectId={state.activeProjectId} />}
               {activeView === 'PEOPLE' && <div className="max-w-6xl mx-auto"><CharacterBible characters={activeProject.characters || {}} characterOrder={activeProject.characterOrder || []} onUpdate={(id, updates) => updateActiveProject({ characters: { ...activeProject.characters, [id]: { ...activeProject.characters[id], ...updates } } })} onDelete={(id) => { if (!confirm("Delete character?")) return; const newChars = { ...activeProject.characters }; delete newChars[id]; updateActiveProject({ characters: newChars, characterOrder: (activeProject.characterOrder || []).filter(cid => cid !== id) }); }} onAdd={() => { const id = generateId(); const newChar: Character = { id, name: "New Character", oneWord: "Archetype", oneSentence: "A mysterious stranger...", traits: [], sixThingsToFix: ["", "", "", "", "", ""], primalGoal: "", saveTheCatMoment: "" }; updateActiveProject({ characters: { ...activeProject.characters, [id]: newChar }, characterOrder: [...(activeProject.characterOrder || []), id] }); }} /></div>}
-              {/* Fix: Replaced undefined variable 'cid' with 'lid' in delete location filter */}
               {activeView === 'LOCATIONS' && <div className="max-w-6xl mx-auto"><Locations locations={activeProject.locations || {}} locationOrder={activeProject.locationOrder || []} onUpdate={(id, updates) => updateActiveProject({ locations: { ...activeProject.locations, [id]: { ...activeProject.locations[id], ...updates } } })} onDelete={(id) => { if (!confirm("Delete location?")) return; const newLocs = { ...activeProject.locations }; delete newLocs[id]; updateActiveProject({ locations: newLocs, locationOrder: (activeProject.locationOrder || []).filter(lid => lid !== id) }); }} onAdd={() => { const id = generateId(); const newLoc: Location = { id, name: "New Location", description: "Describe the setting...", significance: "Why is this place important?", tags: [] }; updateActiveProject({ locations: { ...activeProject.locations, [id]: newLoc }, locationOrder: [...(activeProject.locationOrder || []), id] }); }} /></div>}
               {activeView === 'SETUP_PAYOFF' && <div className="max-w-6xl mx-auto"><SetupPayoffBible setupPayoffs={activeProject.setupPayoffs || {}} setupPayoffOrder={activeProject.setupPayoffOrder || []} onUpdate={(id, updates) => updateActiveProject({ setupPayoffs: { ...activeProject.setupPayoffs, [id]: { ...activeProject.setupPayoffs[id], ...updates } } })} onDelete={(id) => { if (!confirm("Delete setup & payoff?")) return; const newSP = { ...activeProject.setupPayoffs }; delete newSP[id]; updateActiveProject({ setupPayoffs: newSP, setupPayoffOrder: (activeProject.setupPayoffOrder || []).filter(spid => spid !== id) }); }} onAdd={() => { const id = generateId(); const newSP: SetupPayoff = { id, title: "New Setup & Payoff", category: 'FLAW', setupDescription: "Plant the seed here...", bumpDescription: "The mid-story reminder...", payoffDescription: "Harvest the result here..." }; updateActiveProject({ setupPayoffs: { ...activeProject.setupPayoffs, [id]: newSP }, setupPayoffOrder: [...(activeProject.setupPayoffOrder || []), id] }); }} /></div>}
               {activeView === 'KB' && <div className="max-w-6xl mx-auto"><KnowledgeBaseEditor knowledgeBase={activeProject.knowledgeBase || {}} onUpdateKB={(updatedKB) => updateActiveProject({ knowledgeBase: updatedKB })} /></div>}
@@ -444,6 +486,7 @@ const App: React.FC = () => {
               {activeView === 'PUBLISHING' && <div className="max-w-4xl mx-auto"><ExportHub project={activeProject} /></div>}
               {activeView === 'DATABASE_SYNC' && <div className="max-w-5xl mx-auto"><DatabaseSync state={state} onUpdateState={setState} initialConfig={FIREBASE_CONFIG} /></div>}
               {activeView === 'PROJECT_BOOST' && <div className="max-w-4xl mx-auto"><ProjectBoost project={activeProject} onUpdateProject={updateActiveProject} /></div>}
+              {activeView === 'MOVE_THINGS_AROUND' && <div className="max-w-4xl mx-auto"><MoveThingsAround project={activeProject} onUpdateProject={updateActiveProject} /></div>}
             </>
           ) : (
             <div className="h-full flex flex-col items-center justify-center gap-4 text-slate-400"><AlertCircle size={48} /><p className="font-desc italic text-lg">No active project context found.</p></div>
