@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Repeat, Edit3, Trash2, ChevronRight, Plus, Sparkles, Footprints, Target, Zap, Box, BrainCircuit } from 'lucide-react';
 import { SetupPayoff } from './types';
@@ -94,7 +93,8 @@ const SetupPayoffBible: React.FC<Props> = ({ setupPayoffs, setupPayoffOrder, onU
   );
 };
 
-const SetupPayoffCard = ({ sp, onEdit, onDelete }: { sp: SetupPayoff, onEdit: () => void, onDelete: () => void }) => {
+// Fix: Changed props to any to avoid TypeScript errors with 'key' and standard props mapping
+const SetupPayoffCard = ({ sp, onEdit, onDelete }: any) => {
   const category = CATEGORIES.find(c => c.id === (sp.category || 'OTHER')) || CATEGORIES[5];
   
   return (

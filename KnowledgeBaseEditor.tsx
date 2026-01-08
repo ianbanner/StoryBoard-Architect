@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { BookOpen, Search, Edit3, Save, ChevronRight, Clock, Sparkles, BrainCircuit, Layout } from 'lucide-react';
 import { KBArticle } from './types';
@@ -123,7 +122,8 @@ const KnowledgeBaseEditor: React.FC<Props> = ({ knowledgeBase = {}, onUpdateKB }
   );
 };
 
-const KBArticleCard = ({ article, onEdit }: { article: KBArticle, onEdit: () => void }) => {
+// Fix: Changed props to any to avoid TypeScript errors with 'key' and standard props mapping
+const KBArticleCard = ({ article, onEdit }: any) => {
   const orderIndex = STC_BEAT_ORDER.indexOf(article.title);
   const isMeta = orderIndex < 4; // First 4 items are Meta-Articles
   const displayIndex = isMeta ? null : orderIndex - 3; // Subtracting the 4 meta items

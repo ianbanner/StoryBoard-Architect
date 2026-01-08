@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   Terminal, Save, Trash2, Plus, Sparkles, AlertCircle, 
@@ -68,17 +67,18 @@ const AIScriptsEditor: React.FC<Props> = ({ project, scripts = {}, onUpdateScrip
       const context = {
         projectName: project.name,
         planning: project.planning,
-        characters: Object.values(project.characters || {}).map(c => ({
+        // Fix: Explicitly cast Object.values to appropriate types to avoid 'unknown' errors
+        characters: (Object.values(project.characters || {}) as Character[]).map(c => ({
             name: c.name,
             role: c.oneWord,
             bio: c.oneSentence,
             goals: c.primalGoal
         })),
-        locations: Object.values(project.locations || {}).map(l => ({
+        locations: (Object.values(project.locations || {}) as Location[]).map(l => ({
             name: l.name,
             description: l.description
         })),
-        narrativeUnits: Object.values(project.cards || {}).map(c => ({
+        narrativeUnits: (Object.values(project.cards || {}) as StoryCard[]).map(c => ({
             title: c.title,
             beats: c.associatedBeats || [],
             description: c.description
@@ -97,7 +97,8 @@ const AIScriptsEditor: React.FC<Props> = ({ project, scripts = {}, onUpdateScrip
         }
       });
 
-      setExecutionResult(response.text || "Execution completed with no output.");
+      const text = response.text;
+      setExecutionResult(text || "Execution completed with no output.");
     } catch (err: any) {
       setExecutionResult(`CRITICAL EXECUTION FAILURE: ${err.message}`);
     } finally {

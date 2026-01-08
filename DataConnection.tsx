@@ -5,8 +5,8 @@ import {
   Info, CheckCircle2, AlertCircle, Search, Wifi, WifiOff, Loader2, 
   Eye, ShieldCheck, CheckSquare, Layers, Users, MapPin 
 } from 'lucide-react';
-// Fix: Use namespace import for firebase/app to resolve "no exported member" errors in some environments
-import * as firebaseApp from 'firebase/app';
+// Corrected: Use named imports for firebase/app as per v9+ modular SDK
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, getDoc, setDoc, initializeFirestore } from 'firebase/firestore';
 import { StoryboardState } from './types';
 
@@ -50,8 +50,8 @@ const DataConnection: React.FC<Props> = ({ state, onUpdateState, initialConfig }
   }, [logs]);
 
   const getSafeFirestore = () => {
-    // Fix: Access getApps, initializeApp, and getApp through the firebaseApp namespace
-    const app = firebaseApp.getApps().length === 0 ? firebaseApp.initializeApp(config) : firebaseApp.getApp();
+    // Corrected: Using named imports for app management to avoid property access errors
+    const app = getApps().length === 0 ? initializeApp(config) : getApp();
     try {
       addLog(`Initializing Firestore client for: ${config.projectId}`, "info");
       return initializeFirestore(app, { experimentalForceLongPolling: true });

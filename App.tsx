@@ -1,6 +1,5 @@
-
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Zap, Search, LayoutDashboard, Users, MapPin, Compass, Cloud, Target, Loader2, LogOut, ShieldCheck, CheckCircle2, AlertCircle, ChevronDown, Settings, Database, Binary, BookOpen, Plus, Minus, Sparkles, UserPlus, Lock, ShieldAlert, CheckSquare, Square, Trash2, Key, Gavel, FileDown, Terminal, Wifi, Rocket, Repeat, Anchor, ArrowRightLeft } from 'lucide-react';
+import { Zap, Search, LayoutDashboard, Users, MapPin, Compass, Cloud, Target, Loader2, LogOut, ShieldCheck, CheckCircle2, AlertCircle, ChevronDown, Settings, Database, Binary, BookOpen, Plus, Minus, Sparkles, UserPlus, Lock, ShieldAlert, CheckSquare, Square, Trash2, Key, Gavel, FileDown, Terminal, Wifi, Rocket, Repeat, Anchor, ArrowRightLeft, FileUp } from 'lucide-react';
 // Fix: Use namespace import for firebase/app to resolve "no exported member" errors
 import * as firebaseApp from 'firebase/app';
 import { getFirestore, doc, setDoc, getDoc, initializeFirestore, Firestore } from 'firebase/firestore';
@@ -26,6 +25,7 @@ import ExportHub from './ExportHub';
 import DatabaseSync from './DatabaseSync';
 import ProjectBoost from './ProjectBoost';
 import MoveThingsAround from './MoveThingsAround';
+import ExportImportAdmin from './ExportImportAdmin';
 // Fix: Import central db instance from firebase_init
 import { db as centralDb } from './firebase_init';
 
@@ -152,12 +152,25 @@ const SUPERUSER_CONFIG: UserProfile = {
   email: "dave@bigagility.com",
   password: "funnypig",
   isSuperuser: true,
-  permissions: { KB: true, AI_CLEANUP: true, FIREBASE: true, DATA_EXPLORER: true, ADMIN: true, GOVERNANCE: true, PUBLISHING: true, AI_SCRIPTS: true, DATABASE_SYNC: true, PROJECT_BOOST: true, MOVE_THINGS_AROUND: true }
+  permissions: { 
+    KB: true, 
+    AI_CLEANUP: true, 
+    FIREBASE: true, 
+    DATA_EXPLORER: true, 
+    ADMIN: true, 
+    GOVERNANCE: true, 
+    PUBLISHING: true, 
+    AI_SCRIPTS: true, 
+    DATABASE_SYNC: true, 
+    PROJECT_BOOST: true, 
+    MOVE_THINGS_AROUND: true,
+    EXPORT_IMPORT: true
+  }
 };
 
 const App: React.FC = () => {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [activeView, setActiveView] = useState<'STORYBOARD' | 'PEOPLE' | 'LOCATIONS' | 'SETUP_PAYOFF' | 'PLANNING' | 'FIREBASE' | 'ADMIN' | 'DATA_EXPLORER' | 'KB' | 'AI_CLEANUP' | 'GOVERNANCE' | 'PUBLISHING' | 'AI_SCRIPTS' | 'DATABASE_SYNC' | 'PROJECT_BOOST' | 'MOVE_THINGS_AROUND'>('PLANNING');
+  const [activeView, setActiveView] = useState<'STORYBOARD' | 'PEOPLE' | 'LOCATIONS' | 'SETUP_PAYOFF' | 'PLANNING' | 'FIREBASE' | 'ADMIN' | 'DATA_EXPLORER' | 'KB' | 'AI_CLEANUP' | 'GOVERNANCE' | 'PUBLISHING' | 'AI_SCRIPTS' | 'DATABASE_SYNC' | 'PROJECT_BOOST' | 'MOVE_THINGS_AROUND' | 'EXPORT_IMPORT'>('PLANNING');
   const [sbFontSize, setSbFontSize] = useState(12);
   const [visibilityMode, setVisibilityMode] = useState<'FOCUS' | 'HIDDEN'>('FOCUS');
   const [isSyncing, setIsSyncing] = useState(false);
@@ -391,7 +404,7 @@ const App: React.FC = () => {
 
   if (!user) return <LandingPage onLogin={handleLogin} dbStatus={dbStatus} dbErrorMsg={dbErrorMsg} showInitModal={showInitModal} onCloseInitModal={() => setShowInitModal(false)} membershipError={membershipError} />;
 
-  const isAdminActive = ['ADMIN', 'FIREBASE', 'DATA_EXPLORER', 'KB', 'AI_CLEANUP', 'GOVERNANCE', 'PUBLISHING', 'AI_SCRIPTS', 'DATABASE_SYNC', 'PROJECT_BOOST', 'MOVE_THINGS_AROUND'].includes(activeView);
+  const isAdminActive = ['ADMIN', 'FIREBASE', 'DATA_EXPLORER', 'KB', 'AI_CLEANUP', 'GOVERNANCE', 'PUBLISHING', 'AI_SCRIPTS', 'DATABASE_SYNC', 'PROJECT_BOOST', 'MOVE_THINGS_AROUND', 'EXPORT_IMPORT'].includes(activeView);
   const userPerms = user.permissions || {};
   const isDave = user.email.toLowerCase() === "dave@bigagility.com";
 
@@ -419,6 +432,7 @@ const App: React.FC = () => {
                 </button>
                 {isAdminExpanded && (
                   <div className="flex flex-col gap-1 pl-2 w-full">
+                    {userPerms.EXPORT_IMPORT && <SidebarItem isSubmenu icon={<FileUp size={18} />} label="Export & Import" active={activeView === 'EXPORT_IMPORT'} onClick={() => setActiveView('EXPORT_IMPORT')} />}
                     {userPerms.MOVE_THINGS_AROUND && <SidebarItem isSubmenu icon={<ArrowRightLeft size={18} />} label="Move Things Around" active={activeView === 'MOVE_THINGS_AROUND'} onClick={() => setActiveView('MOVE_THINGS_AROUND')} />}
                     {isDave && <SidebarItem isSubmenu icon={<Gavel size={18} />} label="Governance" active={activeView === 'GOVERNANCE'} onClick={() => setActiveView('GOVERNANCE')} />}
                     {userPerms.DATABASE_SYNC && <SidebarItem isSubmenu icon={<Wifi size={18} />} label="Database Sync" active={activeView === 'DATABASE_SYNC'} onClick={() => setActiveView('DATABASE_SYNC')} />}
@@ -477,6 +491,7 @@ const App: React.FC = () => {
               {activeView === 'DATABASE_SYNC' && <div className="max-w-5xl mx-auto"><DatabaseSync state={state} onUpdateState={setState} initialConfig={FIREBASE_CONFIG} /></div>}
               {activeView === 'PROJECT_BOOST' && <div className="max-w-4xl mx-auto"><ProjectBoost project={activeProject} onUpdateProject={updateActiveProject} /></div>}
               {activeView === 'MOVE_THINGS_AROUND' && <div className="max-w-4xl mx-auto"><MoveThingsAround project={activeProject} onUpdateProject={updateActiveProject} /></div>}
+              {activeView === 'EXPORT_IMPORT' && <div className="max-w-5xl mx-auto"><ExportImportAdmin state={state} onUpdateState={setState} userEmail={user?.email || 'unknown'} /></div>}
             </>
           ) : (
             <div className="h-full flex flex-col items-center justify-center gap-4 text-slate-400"><AlertCircle size={48} /><p className="font-desc italic text-lg">No active project context found.</p></div>

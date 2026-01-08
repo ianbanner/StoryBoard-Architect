@@ -1,6 +1,6 @@
 
-// Fix: Use namespace import for firebase/app to resolve "no exported member" errors in some environments
-import * as firebaseApp from 'firebase/app';
+// Corrected: Use named imports for firebase/app as per v9+ modular SDK
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, initializeFirestore, Firestore } from 'firebase/firestore';
 
 const FIREBASE_CONFIG = {
@@ -14,8 +14,8 @@ const FIREBASE_CONFIG = {
 
 let dbInstance: Firestore | null = null;
 
-// Fix: Correctly initialize and export 'db' to be used by other files (DataExplorer, DatabaseSync, etc.)
-const app = firebaseApp.getApps().length === 0 ? firebaseApp.initializeApp(FIREBASE_CONFIG) : firebaseApp.getApp();
+// Corrected: Using named imports for app management to avoid property access errors
+const app = getApps().length === 0 ? initializeApp(FIREBASE_CONFIG) : getApp();
 
 try {
   dbInstance = initializeFirestore(app, { experimentalForceLongPolling: true });
